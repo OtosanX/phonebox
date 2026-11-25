@@ -1,14 +1,26 @@
 <p align="center"><img src="agent/PhoneBox.Agent/phonebox.ico" width="72" alt="PhoneBox icon"></p>
 
-<h1 align="center">PhoneBox</h1>
+<h1 align="center">PhoneBox Deck for WoW Forever</h1>
 
-This is **PhoneBox Deck**, a fork of [ersinkoc/phonebox](https://github.com/ersinkoc/phonebox) with additional Windows controls, Android deck layouts, and support for the separate **PhoneBox Spellbook** add-on for WoW Forever.
+I’m **OtosanX**. I forked [PhoneBox by Ersin KOÇ](https://github.com/ersinkoc/phonebox) to use an Android touchscreen as a customizable control deck for **World of Warcraft Forever** on Windows. This repository provides the Windows and Android apps for the **PhoneBox Spellbook** CurseForge add-on.
 
-- [Changes in the PhoneBox Deck fork](docs/DECK-FORK.md)
-- [PhoneBox Spellbook preview setup](packaging/wow-preview/START-HERE.md)
-- [GitHub releases for this fork](https://github.com/OtosanX/phonebox/releases)
+## Get started
 
-The original PhoneBox documentation follows. Use this fork's companion builds for the features described above.
+1. Install the Windows and Android companion apps from the [PhoneBox Deck 1.2.1 preview](https://github.com/OtosanX/phonebox/releases/tag/deck-preview-v1.2.1).
+2. Install **PhoneBox Spellbook** for WoW Forever 1.60.1 and follow the [setup guide](packaging/wow-preview/START-HERE.md). The [add-on source](extras/wow/PhoneBoxSpellbook) is in this repository.
+3. In WoW, type `/pbspells` outside combat. In the PhoneBox web editor, open **WoW Actions → Choose actions** to pick what goes on your deck.
+
+## WoW integration
+
+- Put learned spells, items and existing macros into folders with their in-game icons.
+- Keep form and stealth actions in their own menus. Supported stealth states switch the panel as you enter or leave stealth.
+- Open **Adventure** for your Hearthstone, fishing, food, potions and collected Pet Journal companions. Hunters get a separate folder for active combat-pet commands.
+
+## Other PhoneBox changes
+
+I also added separate portrait and landscape layouts, quicker Windows app shortcuts with icons, updated media controls, hardware and FPS widgets, a Discord call widget, and improvements for older Android tablets. [Full list of changes](docs/DECK-FORK.md)
+
+## Upstream PhoneBox documentation
 
 <p align="center">
   <b>English</b> ·
