@@ -8,6 +8,14 @@ Captured on the same Vizio XR6M10 with WoW Forever in the foreground. The home a
 
 ![Adventure panel in portrait and landscape with Hearthstone, fishing, food, potions and pets](screenshots/02-adventure-portrait-and-landscape.png)
 
+## Pet Journal companions
+
+**Adventure → Pets** shows up to eight companions per page with their names and game icons. Tap **Previous** or **Next** to move through the collection. These previews use sample companions.
+
+![Pet Journal companions and page controls in portrait](screenshots/05-pet-journal-example.png)
+
+![Two Pet Journal pages side by side, each showing eight companions](screenshots/06-pet-journal-pages.png)
+
 ## Rogue Stealth
 
 This web preview uses sample actions. Stealth opens the configured Stealth Spells folder with Ambush, Cheap Shot, Sap and Pick Pocket. **Leave Stealth** is in the same folder.

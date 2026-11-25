@@ -6,7 +6,7 @@ I’m **OtosanX**. I forked [PhoneBox by Ersin KOÇ](https://github.com/ersinkoc
 
 ## Get started
 
-1. Install the Windows and Android companion apps from the [PhoneBox Deck 1.2.1 preview](https://github.com/OtosanX/phonebox/releases/tag/deck-preview-v1.2.1).
+1. Install the Windows and Android companion apps from the [PhoneBox Deck 1.2.2 preview](https://github.com/OtosanX/phonebox/releases/tag/deck-preview-v1.2.2).
 2. Install **PhoneBox Spellbook** for WoW Forever 1.60.1 and follow the [setup guide](packaging/wow-preview/START-HERE.md). The [add-on source](extras/wow/PhoneBoxSpellbook) is in this repository.
 3. In WoW, type `/pbspells` outside combat. In the PhoneBox web editor, open **WoW Actions → Choose actions** to pick what goes on your deck.
 
@@ -14,13 +14,13 @@ I’m **OtosanX**. I forked [PhoneBox by Ersin KOÇ](https://github.com/ersinkoc
 
 - Put learned spells, items and existing macros into folders with their in-game icons.
 - Keep form and stealth actions in their own menus. Supported stealth states switch the panel as you enter or leave stealth.
-- Open **Adventure** for your Hearthstone, fishing, food, potions and collected Pet Journal companions. Hunters get a separate folder for active combat-pet commands.
+- Open **Adventure** for your Hearthstone, fishing, food, potions and collected Pet Journal companions. Tap **Previous** or **Next** in Pets to browse eight companions at a time. Hunters get a separate folder for active combat-pet commands.
 
 ## Screenshots
 
 ![The WoW home deck on the same tablet in portrait and landscape](docs/screenshots/01-wow-deck-portrait-and-landscape.png)
 
-See the [screenshot gallery](docs/SCREENSHOTS.md) for Adventure in both orientations, Rogue Stealth, and Druid Cat and Bear Forms.
+See the [screenshot gallery](docs/SCREENSHOTS.md) for Adventure in both orientations, Pet Journal paging, Rogue Stealth, and Druid Cat and Bear Forms.
 
 ## Other PhoneBox changes
 

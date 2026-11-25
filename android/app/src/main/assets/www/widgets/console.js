@@ -21,6 +21,7 @@ const NUMPAD_AREAS = [
 const openFolders = new Map();
 const spellQueues = new Map();
 const MAX_QUEUED_SPELLS = 12;
+const PETS_PER_PAGE = 8;
 
 async function post(path) {
   const ctl = new AbortController();
@@ -60,7 +61,25 @@ W['app-console'] = {
     choose.type = 'button';
     choose.hidden = true;
     box.classList.toggle('ac-action-bar', canEdit);
-    const header = h('div', 'ac-head', back, title, choose, edit);
+    const previousPets = h('button', 'ac-edit-toggle', tp('Previous'));
+    const nextPets = h('button', 'ac-edit-toggle', tp('Next'));
+    previousPets.type = nextPets.type = 'button';
+    const petPageCount = h('span', 'ac-pet-page-count');
+    petPageCount.setAttribute('aria-live', 'polite');
+    const petPager = h('div', 'ac-pet-pager', previousPets, petPageCount, nextPets);
+    petPager.hidden = true;
+    let petPage = 0;
+    const resetPetPage = () => { petPage = 0; petPager.hidden = true; };
+    const stepPetPage = delta => {
+      if (petPager.hidden || !viewState) return;
+      petPage += delta;
+      sig = '';
+      haptic();
+      render(viewState);
+    };
+    previousPets.onclick = () => stepPetPage(-1);
+    nextPets.onclick = () => stepPetPage(1);
+    const header = h('div', 'ac-head', back, title, choose, edit, petPager);
     const keys = h('div', 'ac-keys');
     const dock = h('div', 'ac-nav-dock');
     dock.hidden = true;
@@ -93,7 +112,9 @@ W['app-console'] = {
       if (!canEdit || !keys.clientWidth || !keys.clientHeight) return;
       const width = keys.clientWidth, height = keys.clientHeight;
       const keypad = fullKeypad();
-      const cols = keypad ? 4 : !folder && folders ? (width >= 600 ? 4 : 2) : (width >= 600 ? 6 : width >= 360 ? 3 : 2);
+      const pets = folder?.category === 'pet';
+      const cols = keypad ? 4 : pets ? (width >= 420 && width >= height ? 4 : 2)
+        : !folder && folders ? (width >= 600 ? 4 : 2) : (width >= 600 ? 6 : width >= 360 ? 3 : 2);
       const rows = keypad ? 5 : Math.max(1, Math.ceil(visibleTiles.length / cols));
       const balanced = navigationTiles && !keypad && visibleTiles.length > 0;
       keys.classList.toggle('ac-balanced-keys', Boolean(balanced));
@@ -219,6 +240,8 @@ W['app-console'] = {
     };
     const home = () => {
       if (!editor.hidden) closeEditor();
+      resetPetPage();
+      box.classList.remove('ac-pet-journal');
       folder = null;
       viewState = null;
       if (queue) queue.adding = false;
@@ -266,6 +289,8 @@ W['app-console'] = {
     };
     const showFolder = entry => {
       if (!editor.hidden) closeEditor();
+      resetPetPage();
+      box.classList.toggle('ac-pet-journal', entry.category === 'pet');
       folder = entry;
       viewState = null;
       openFolders.set(wq, entry.id);
@@ -564,8 +589,21 @@ W['app-console'] = {
       const children = currentFolder ? folders?.filter(entry => entry.parent === currentFolder.id
         && (entry.form !== 30 || state?.stealthed === true)
         && (entry.category !== 'hunter-pet' || state?.hunter === true)) || [] : [];
-      const actionTiles = (profile ? profile.keys : []).map((label, i) => {
-        const b = canEdit ? tile(label, profile.icons?.[i], String(i + 1), profile.iconIds?.[i]) : h('button', 'ac-key', label);
+      const pets = state?.inventory && currentFolder?.category === 'pet';
+      const labels = profile?.keys || [];
+      const pagesOfPets = pets ? Math.ceil(labels.length / PETS_PER_PAGE) : 0;
+      petPage = Math.max(0, Math.min(petPage, pagesOfPets - 1));
+      petPager.hidden = pagesOfPets < 2;
+      previousPets.disabled = petPage === 0;
+      nextPets.disabled = petPage >= pagesOfPets - 1;
+      petPageCount.textContent = `${petPage + 1} / ${pagesOfPets}`;
+      const first = pets ? petPage * PETS_PER_PAGE : 0;
+      const visibleLabels = pets ? labels.slice(first, first + PETS_PER_PAGE) : labels;
+      const actionTiles = visibleLabels.map((label, index) => {
+        const i = index + first;
+        const b = canEdit ? tile(label, profile.icons?.[i] || (pets ? '🐾' : ''), String(i + 1), profile.iconIds?.[i])
+          : h('button', 'ac-key', label);
+        if (pets) b.title = label;
         if (fullKeypad()) b.style.gridArea = NUMPAD_AREAS[i];
         const queuedId = profile.queueIds?.[i];
         b.disabled = adding ? !queuedId || queue.sending || queue.entries.length >= MAX_QUEUED_SPELLS
