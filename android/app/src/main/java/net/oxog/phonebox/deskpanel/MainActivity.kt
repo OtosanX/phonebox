@@ -459,9 +459,9 @@ class MainActivity : Activity(), SensorEventListener {
         private fun ok(key: String) = key == bridgeKey
 
         @JavascriptInterface
-        fun setBatteryReminders(key: String, enabled: Boolean, low: Int, high: Int) {
+        fun setBatteryReminders(key: String, enabled: Boolean, low: Int, high: Int, autoDismiss: Boolean) {
             if (!ok(key)) return
-            runOnUiThread { if (!destroyed) batteryReminder.configure(enabled, low, high) }
+            runOnUiThread { if (!destroyed) batteryReminder.configure(enabled, low, high, autoDismiss) }
         }
 
         @JavascriptInterface

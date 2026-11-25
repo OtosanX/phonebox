@@ -806,6 +806,7 @@ nav a.on::before { color: var(--accent); }
           <input type="number" min="5" max="95" data-bind="charge.min" data-type="int" style="width:70px"> % <span id="chargeRangeAnd">and</span>
           <input type="number" min="10" max="100" data-bind="charge.max" data-type="int" style="width:70px"> %</div>
         <label class="check"><input type="checkbox" data-bind="charge.reminders"> <span>Show plug and unplug reminders on the tablet</span></label>
+        <label class="check"><input type="checkbox" data-bind="charge.autoDismissReminder"> <span>Close battery reminders after 3 seconds</span></label>
         <label class="check"><input type="checkbox" data-bind="charge.enabled"> <span>Switch power automatically</span></label>
         <div class="grid2">
           <div class="field"><label data-i18n="s.battery.method">Switch the power with</label><select data-bind="charge.method"><option value="ha" data-i18n="s.battery.methodHa">a Home Assistant switch (smart plug)</option><option value="shortcuts" data-i18n="s.battery.methodShortcuts">two shortcuts (power on / power off)</option></select></div>

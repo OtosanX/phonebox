@@ -89,7 +89,7 @@ public sealed class AgentConfig
         }),
         // names only (for the Rules widget); what a rule matches on stays here
         rules = Rules.Select(r => new { r.Id, r.Name, r.Enabled, r.When }),
-        charge = new { Charge.Enabled, Charge.Reminders, Charge.Min, Charge.Max },
+        charge = new { Charge.Enabled, Charge.Reminders, Charge.AutoDismissReminder, Charge.Min, Charge.Max },
         // OpenCode prompts: how long the Allow always button waits before it can be pressed (it saves a pattern)
         opencode = new { OpenCode.AlwaysCountdownSec },
     };
@@ -407,6 +407,7 @@ public sealed class ChargeConfig
 {
     public bool Enabled { get; set; }
     public bool Reminders { get; set; }
+    public bool AutoDismissReminder { get; set; }
     public int Min { get; set; } = 50;
     public int Max { get; set; } = 80;
     /// <summary>"ha" (a Home Assistant switch entity) or "shortcuts" (one shortcut for power on, one for off).</summary>

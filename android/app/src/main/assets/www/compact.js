@@ -291,7 +291,7 @@
         window.Android.setVolumeKeys(window.__phoneboxKey, display.volumeKeys !== false);
         var charge = config.charge;
         if (charge && typeof charge.reminders === 'boolean' && typeof window.Android.setBatteryReminders === 'function')
-          window.Android.setBatteryReminders(window.__phoneboxKey, charge.reminders, charge.min, charge.max);
+          window.Android.setBatteryReminders(window.__phoneboxKey, charge.reminders, charge.min, charge.max, charge.autoDismissReminder === true);
       }
       var selected = current();
       if (paused || !selected) return finish(true);

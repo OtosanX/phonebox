@@ -2408,7 +2408,7 @@ export function applyDisplay() {
   try { bridge.setVolumeKeys && bridge.setVolumeKeys(d.volumeKeys !== false); } catch (_) {}
   try { bridge.setPinned && bridge.setPinned(d.pin === true); } catch (_) {}
   if (typeof cfg.charge?.reminders === 'boolean')
-    try { bridge.setBatteryReminders?.(cfg.charge.reminders, cfg.charge.min, cfg.charge.max); } catch (_) {}
+    try { bridge.setBatteryReminders?.(cfg.charge.reminders, cfg.charge.min, cfg.charge.max, cfg.charge.autoDismissReminder === true); } catch (_) {}
   applyPageOrientation();
   try { bridge.setHomeScreen && bridge.setHomeScreen(d.homeScreen === true); } catch (_) {}
   applyBrightness(true);
