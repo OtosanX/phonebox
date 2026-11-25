@@ -1587,22 +1587,26 @@ export function togglePagePaused() {
 
 export function buildDots() {
   const dots = $('dots');
-  if (pages.length < 2) {
+  const multiPage = pages.length > 1;
+  if (!multiPage && !bridge?.closeApp) {
     pagePauseBtn = pageAllBtn = null;
     dots.replaceChildren();
     dots.classList.remove('paused');
     dots.hidden = true;
     return;
   }
-  pagePauseBtn = h('button', 'page-pause',
-    makeSvg('i-pause', 'M7 5h4v14H7zM13 5h4v14h-4z'),
-    makeSvg('i-play', 'M8 5v14l11-7z'));
-  pagePauseBtn.type = 'button';
-  pagePauseBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (scrubbed) { scrubbed = false; return; } // the touch that opened the page bar
-    togglePagePaused();
-  });
+  pagePauseBtn = null;
+  if (multiPage) {
+    pagePauseBtn = h('button', 'page-pause',
+      makeSvg('i-pause', 'M7 5h4v14H7zM13 5h4v14h-4z'),
+      makeSvg('i-play', 'M8 5v14l11-7z'));
+    pagePauseBtn.type = 'button';
+    pagePauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (scrubbed) { scrubbed = false; return; } // the touch that opened the page bar
+      togglePagePaused();
+    });
+  }
   // each dot is a finger-sized button that goes to its page; the dot itself stays the small <i> inside
   const dot = (p, i) => {
     const b = h('button', 'dot', h('i'), p.icon ? h('span', 'dot-ic', rich(p.icon)) : null, h('span', 'dot-nm', p.title || `${i + 1}`));
@@ -1621,7 +1625,8 @@ export function buildDots() {
     openOverview();
   });
   dots.style.setProperty('--n', pages.length);
-  dots.replaceChildren(...pages.map(dot), pageAllBtn, pagePauseBtn);
+  if (multiPage) dots.replaceChildren(...pages.map(dot), pageAllBtn, pagePauseBtn);
+  else dots.replaceChildren(pageAllBtn);
   dots.hidden = false;
   syncPagePauseUi();
 }
