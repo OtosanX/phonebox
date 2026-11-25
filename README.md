@@ -16,6 +16,12 @@ I’m **OtosanX**. I forked [PhoneBox by Ersin KOÇ](https://github.com/ersinkoc
 - Keep form and stealth actions in their own menus. Supported stealth states switch the panel as you enter or leave stealth.
 - Open **Adventure** for your Hearthstone, fishing, food, potions and collected Pet Journal companions. Hunters get a separate folder for active combat-pet commands.
 
+## Screenshots
+
+![The WoW home deck on the same tablet in portrait and landscape](docs/screenshots/01-wow-deck-portrait-and-landscape.png)
+
+See the [screenshot gallery](docs/SCREENSHOTS.md) for Adventure in both orientations, Rogue Stealth, and Druid Cat and Bear Forms.
+
 ## Other PhoneBox changes
 
 I also added separate portrait and landscape layouts, quicker Windows app shortcuts with icons, updated media controls, hardware and FPS widgets, a Discord call widget, and improvements for older Android tablets. [Full list of changes](docs/DECK-FORK.md)
