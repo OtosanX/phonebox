@@ -14,6 +14,8 @@ public sealed class MediaMonitor(ILogger<MediaMonitor> log) : BackgroundService
 
     public AlbumArt? Art => _art.Current;
     public MediaSnapshot? Snapshot() => _snap;
+    public bool IsCurrentVolumeSource(string source) =>
+        string.Equals(_mgr?.GetCurrentSession()?.SourceAppUserModelId, source, StringComparison.OrdinalIgnoreCase);
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -115,7 +117,7 @@ public sealed class MediaMonitor(ILogger<MediaMonitor> log) : BackgroundService
             PosMs: (long)pos.TotalMilliseconds,
             DurMs: (long)Math.Max(0, dur.TotalMilliseconds),
             ArtId: Art is null ? 0 : _art.Id,
-            CanSeek: pb.Controls.IsPlaybackPositionEnabled) { SampledAt = sampledAt };
+            CanSeek: pb.Controls.IsPlaybackPositionEnabled) { SampledAt = sampledAt, SourceId = s.SourceAppUserModelId };
     }
 
     public async Task<bool> Control(string action, long? ms)

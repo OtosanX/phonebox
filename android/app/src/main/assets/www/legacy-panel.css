@@ -1,0 +1,53 @@
+@supports not (color: color-mix(in srgb, red, transparent)) {
+  .key {
+    --k-rgb: 107, 114, 128;
+    background: linear-gradient(160deg, rgba(var(--k-rgb), .22), rgba(255, 255, 255, .03));
+    border: 1px solid rgba(var(--k-rgb), .35);
+  }
+}
+
+@supports not (font-size: 1cqh) {
+  html { -webkit-text-size-adjust: 100%; }
+  .w { --panel-cqw: 2px; --panel-cqh: 1px; --panel-cqmin: 1px; }
+  .card { border-radius: 20px; }
+  .key .k-icon { font-size: calc(clamp(16px, 7 * var(--panel-cqmin), 30px) * var(--widget-font-scale, 1)); }
+  .key .k-icon.k-icon-img img { width: clamp(16px, 7 * var(--panel-cqmin), 30px); height: clamp(16px, 7 * var(--panel-cqmin), 30px); }
+  .key .k-label { font-size: calc(clamp(10px, 3.6 * var(--panel-cqmin), 14px) * var(--widget-font-scale, 1)); }
+  .w-button .key .k-icon { font-size: calc(min(40 * var(--panel-cqh), 30 * var(--panel-cqw)) * var(--widget-font-scale, 1)); }
+  .w-button .key .k-icon.k-icon-img img { width: min(40 * var(--panel-cqh), 30 * var(--panel-cqw)); height: min(40 * var(--panel-cqh), 30 * var(--panel-cqw)); }
+  .w-button .key .k-label { font-size: calc(clamp(10px, 15 * var(--panel-cqh), 18px) * var(--widget-font-scale, 1)); }
+  .w-volume.vert .vb { width: min(46px, 40 * var(--panel-cqw)); }
+  .w-volume .vb-v { font-size: calc(clamp(12px, 9 * var(--panel-cqh), 22px) * var(--widget-font-scale, 1)); }
+  .w-volume .pb { width: clamp(30px, 14 * var(--panel-cqh), 46px); height: clamp(30px, 14 * var(--panel-cqh), 46px); }
+  .w-volume .pb { font-size: calc(clamp(13px, 6 * var(--panel-cqh), 19px) * var(--widget-font-scale, 1)); }
+
+  .w-media { padding: 16px 18px; }
+  .m-top { gap: clamp(8px, 3 * var(--panel-cqw), 18px); }
+  .art-wrap {
+    width: min(72 * var(--panel-cqh), 44 * var(--panel-cqw));
+    height: auto;
+    border-radius: clamp(8px, 6 * var(--panel-cqh), 18px);
+  }
+  .m-app { font-size: calc(clamp(9px, 4.5 * var(--panel-cqh), 13px) * var(--widget-font-scale, 1)); }
+  .m-title { font-size: calc(clamp(13px, 9 * var(--panel-cqh), 30px) * var(--widget-font-scale, 1)); }
+  .w-media.media-stacked .m-title { font-size: calc(clamp(16px, 5.6 * var(--panel-cqh), 28px) * var(--widget-font-scale, 1)); }
+  .m-artist { font-size: calc(clamp(11px, 6 * var(--panel-cqh), 19px) * var(--widget-font-scale, 1)); }
+
+  .w-next-holiday .cd-l { font-size: clamp(10px, 11 * var(--panel-cqh), 14px); }
+  .w-next-holiday .cd-v { font-size: min(38 * var(--panel-cqh), 17 * var(--panel-cqw)); }
+  .w-next-holiday .cd-s { font-size: clamp(9.5px, 10 * var(--panel-cqh), 13px); }
+
+  .w-stat { padding: 10px 12px; }
+  .t-label { font-size: calc(clamp(9px, 12 * var(--panel-cqh), 11px) * var(--widget-font-scale, 1)); }
+  .t-val b { font-size: calc(clamp(16px, 30 * var(--panel-cqh), 40px) * var(--widget-font-scale, 1)); }
+  .t-val small { font-size: calc(clamp(10px, 14 * var(--panel-cqh), 15px) * var(--widget-font-scale, 1)); }
+  .t-sub { font-size: calc(clamp(9.5px, 13 * var(--panel-cqh), 13px) * var(--widget-font-scale, 1)); }
+
+  .clock { font-size: calc(min(calc(var(--tf, .6) * 100 * var(--panel-cqh)), 30 * var(--panel-cqw)) * var(--widget-font-scale, 1)); }
+  .clock-wide .clock { font-size: calc(min(82 * var(--panel-cqh), 15 * var(--panel-cqw)) * var(--widget-font-scale, 1)); }
+  .status { font-size: calc(clamp(10px, 5 * var(--panel-cqh), 12.5px) * var(--widget-font-scale, 1)); }
+  .date { font-size: calc(clamp(11px, 7.5 * var(--panel-cqh), 19px) * var(--widget-font-scale, 1)); }
+  .wx { margin-top: clamp(2px, 4 * var(--panel-cqh), 14px); }
+  .wx-icon, .wx-temp { font-size: calc(clamp(18px, 13 * var(--panel-cqh), 34px) * var(--widget-font-scale, 1)); }
+  .wx-meta { font-size: calc(clamp(10px, 5.4 * var(--panel-cqh), 13px) * var(--widget-font-scale, 1)); }
+}

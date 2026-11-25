@@ -1,0 +1,17 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #0e1520; color: #f0f5fc; font: 16px Roboto, Arial, sans-serif; }
+header { padding: 12px 16px 6px; }
+#connection { float: right; color: #9cb8c8; font-size: 14px; }
+nav, main { padding: 4px 12px; }
+button { font: inherit; color: inherit; background: #1d2b3d; border: 1px solid #445973; border-radius: 9px; }
+button:disabled { opacity: .5; }
+button:active, button[aria-pressed="true"] { background: #294e57; border-color: #71d2c2; }
+nav button { min-height: 44px; padding: 4px 14px; margin: 3px; }
+.tiles { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+.key, .metric { width: 23.5%; min-width: 100px; min-height: 54px; margin: .75%; padding: 8px; overflow-wrap: break-word; }
+.metric { background: #182431; border-radius: 9px; color: #b6e4dc; text-align: center; }
+.metric-label { display: block; color: #9cb8c8; font-size: 12px; }
+.metric-value { display: block; margin-top: 3px; font-size: 17px; font-weight: 600; }
+.wide { width: 48.5%; }
+.game-chart svg { display: block; width: 100%; height: 42px; margin-top: 4px; }
+footer { min-height: 28px; padding: 4px 16px; color: #ffc68f; }

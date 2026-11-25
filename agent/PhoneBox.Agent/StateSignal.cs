@@ -27,7 +27,7 @@ public static class StateSignal
     public static bool MediaChanged(MediaSnapshot? before, MediaSnapshot? after)
     {
         if (before is null || after is null) return before is not null || after is not null;
-        if (before.Title != after.Title || before.Artist != after.Artist || before.App != after.App
+        if (before.Title != after.Title || before.Artist != after.Artist || before.App != after.App || before.SourceId != after.SourceId
             || before.Playing != after.Playing || before.DurMs != after.DurMs || before.ArtId != after.ArtId) return true;
         // a seek: the position moved by clearly more than the second or two of playback between two readings
         return Math.Abs(after.PosMs - before.PosMs) > 3000;

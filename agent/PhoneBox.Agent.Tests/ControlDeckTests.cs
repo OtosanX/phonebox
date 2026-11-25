@@ -7,6 +7,28 @@ using Xunit;
 public sealed class ControlDeckTests
 {
     [Fact]
+    public void MediaVolumeMatchesThePlayerIdentityInsteadOfOtherAudibleApps()
+    {
+        const string packaged = "Contoso.Media_123!Player";
+        var audio = new DeckAudio(true, null, [],
+        [
+            new("game", "Game", 1, "speakers", 80, false, 1, "game"),
+            new("spotify", "Spotify", 2, "speakers", 30, false, 0.1, "Spotify"),
+            new("chrome-paused", "Google Chrome", 3, "speakers", 25, false, 0, "chrome", false),
+            new("chrome-other-output", "Google Chrome", 4, "headset", 40, true, 0.2, "chrome"),
+            new("chrome-default-output", "Google Chrome", 5, "speakers", 65, false, 0.4, "chrome"),
+            new("packaged", "Contoso Media", 6, "speakers", 65, false, 0, "Host") { AppUserModelId = packaged },
+            new("unrelated-host", "Host", 7, "speakers", 65, false, 0, "Host"),
+        ], new Dictionary<string, string> { ["output:1"] = "speakers" });
+
+        Assert.Equal(["spotify"], ControlDeck.MediaAudioSessions(audio, "Spotify.exe").Select(s => s.Id));
+        Assert.Equal(["chrome-default-output", "chrome-other-output", "chrome-paused"],
+            ControlDeck.MediaAudioSessions(audio, "Chrome._crx_video").Select(s => s.Id));
+        Assert.Equal(["packaged"], ControlDeck.MediaAudioSessions(audio, packaged).Select(s => s.Id));
+        Assert.Empty(ControlDeck.MediaAudioSessions(audio, "Unknown player"));
+    }
+
+    [Fact]
     public void PushToTalkExpiresAndRestoresTheOriginalState()
     {
         long time = 0; var muted = true;

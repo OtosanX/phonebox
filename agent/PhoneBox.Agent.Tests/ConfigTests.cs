@@ -538,6 +538,31 @@ public class ConfigConcurrencyTests
     }
 
     [Fact]
+    public void PerPageOrientationAndPortraitPositionsRoundTripSeparatelyFromLandscape()
+    {
+        var (store, path) = NewStore();
+        try
+        {
+            Assert.Null(store.Save("""
+                {"pages":[{"id":"deck","orientation":"portrait","widgets":[
+                    {"type":"stat","x":5,"y":2,"w":3,"h":2,"portrait":{"x":8,"y":5,"w":4,"h":3}}
+                ]},{"id":"other","orientation":"invalid","widgets":[{"type":"stat"}]}]}
+                """));
+            var pages = JsonSerializer.SerializeToElement(new ConfigStore(path).Get().ToPublic(), ConfigStore.WriteOpts).GetProperty("pages");
+            var widget = pages[0].GetProperty("widgets")[0];
+            Assert.Equal("portrait", pages[0].GetProperty("orientation").GetString());
+            Assert.Equal(5, widget.GetProperty("x").GetInt32());
+            Assert.Equal(2, widget.GetProperty("y").GetInt32());
+            var portrait = widget.GetProperty("portrait");
+            Assert.Equal(2, portrait.GetProperty("x").GetInt32());
+            Assert.Equal(5, portrait.GetProperty("y").GetInt32());
+            Assert.False(pages[1].TryGetProperty("orientation", out _));
+            Assert.False(pages[1].GetProperty("widgets")[0].TryGetProperty("portrait", out _));
+        }
+        finally { File.Delete(path); File.Delete(path + ".bak"); }
+    }
+
+    [Fact]
     public void DisplayLanguageDefaultsAndExposesToPublic()
     {
         var (s, path) = NewStore();

@@ -73,7 +73,11 @@ public sealed class DiscordShareTests : IDisposable
     {
         var apps = DiscordMonitor.RunningApps();
         Assert.True(apps.Count <= DiscordMonitor.ShareAppsMax);
-        Assert.All(apps, a => Assert.False(string.IsNullOrWhiteSpace(a.Name)));
+        Assert.All(apps, a =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(a.Name));
+            Assert.False(string.IsNullOrWhiteSpace(a.Title));
+        });
         Assert.Equal(apps.Count, apps.Select(a => a.Pid).Distinct().Count());
         Assert.DoesNotContain(apps, a => a.Pid == Environment.ProcessId);
     }

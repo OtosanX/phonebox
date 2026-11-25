@@ -2,6 +2,14 @@
 
 <h1 align="center">PhoneBox</h1>
 
+This is **PhoneBox Deck**, a fork of [ersinkoc/phonebox](https://github.com/ersinkoc/phonebox) with additional Windows controls, Android deck layouts, and support for the separate **PhoneBox Spellbook** add-on for WoW Forever.
+
+- [Changes in the PhoneBox Deck fork](docs/DECK-FORK.md)
+- [PhoneBox Spellbook preview setup](packaging/wow-preview/START-HERE.md)
+- [GitHub releases for this fork](https://github.com/OtosanX/phonebox/releases)
+
+The original PhoneBox documentation follows. Use this fork's companion builds for the features described above.
+
 <p align="center">
   <b>English</b> ·
   <a href="docs/README.tr.md">Türkçe</a> ·

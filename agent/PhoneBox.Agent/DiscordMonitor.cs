@@ -19,6 +19,10 @@ public sealed record DiscordSnapshot(bool Connected, string? Error, string? User
     IReadOnlyList<DiscordChannel> Channels, IReadOnlyList<DiscordNotification> Notifications,
     string? InputMode = null, bool PttKey = false);
 
+public sealed record DiscordCallSnapshot(bool Enabled, bool Connected, string? Error, string? ChannelId,
+    string? ChannelName, string? ChannelKind, long? ObservedAt, bool SpeakingAvailable,
+    bool Muted, bool Deafened, string? InputMode, bool PttKey, bool CanControl, IReadOnlyList<DiscordMember> Members);
+
 /// <summary>
 /// Discord through the desktop app's local IPC (the same one rich presence uses: a named pipe on Windows, a socket on
 /// Linux / macOS). Needs a Discord developer application (client id + secret) and a one-time "Authorize" click in
@@ -40,6 +44,7 @@ public sealed partial class DiscordMonitor(ConfigStore config, ILogger<DiscordMo
     private static readonly string[] SpeakingEvents = ["SPEAKING_START", "SPEAKING_STOP"];
 
     private volatile DiscordSnapshot _snap = Empty(null);
+    private long? _callObservedAt;
     private readonly object _lock = new();
     private readonly List<DiscordNotification> _notes = [];
     internal readonly ConcurrentDictionary<string, TaskCompletionSource<JsonNode?>> _pending = new(); // internal for tests
@@ -68,11 +73,31 @@ public sealed partial class DiscordMonitor(ConfigStore config, ILogger<DiscordMo
         lock (_lock)
         {
             var s = _snap;
-            var members = _speaking.Count == 0 || s.ChannelId != _speakingChannel ? s.Members
-                : [.. s.Members.Select(m => _speaking.Contains(m.Id) ? m with { Speaking = true } : m)];
-            return s with { Members = members, Notifications = wanted ? [.. _notes] : [] };
+            return s with { Members = CallMembers(s), Notifications = wanted ? [.. _notes] : [] };
         }
     }
+
+    internal static bool CallWidgetWanted(AgentConfig cfg) =>
+        cfg.Widgets(enabledPagesOnly: true).Any(w => w.Type == "discord-call");
+
+    public DiscordCallSnapshot CurrentCall(AgentConfig cfg)
+    {
+        lock (_lock)
+        {
+            var state = cfg.Discord.Enabled ? _snap : Empty(null);
+            var active = state.Connected && state.ChannelId is not null;
+            return new(cfg.Discord.Enabled, state.Connected, state.Error, state.ChannelId,
+                state.ChannelName, state.ChannelKind, active ? _callObservedAt : null,
+                active && state.ChannelId == _speakingChannel, state.Muted, state.Deafened,
+                state.InputMode, state.PttKey, ControlAllowed(cfg), active ? CallMembers(state) : []);
+        }
+    }
+
+    private IReadOnlyList<DiscordMember> CallMembers(DiscordSnapshot state) =>
+        _speaking.Count == 0 || state.ChannelId != _speakingChannel ? state.Members :
+            [.. state.Members.Select(member => _speaking.Contains(member.Id) ? member with { Speaking = true } : member)];
+
+    internal event Action? CallChanged;
 
     // Who is talking in the voice channel you are in, from Discord's SPEAKING_START / SPEAKING_STOP events (guarded by _lock).
     private readonly HashSet<string> _speaking = [];
@@ -117,12 +142,14 @@ public sealed partial class DiscordMonitor(ConfigStore config, ILogger<DiscordMo
     {
         var user = JsonStr((data as JsonObject)?["user_id"]);
         var channel = JsonStr((data as JsonObject)?["channel_id"]);
+        bool changed;
         lock (_lock)
         {
             // an event still on its way from the channel you just left, or one that arrives after leaving, is dropped
             if (user is null || _speakingChannel is null || (channel is not null && channel != _speakingChannel)) return;
-            if (evt == "SPEAKING_START") _speaking.Add(user); else _speaking.Remove(user);
+            changed = evt == "SPEAKING_START" ? _speaking.Add(user) : _speaking.Remove(user);
         }
+        if (changed) CallChanged?.Invoke();
     }
 
     /// <summary>The user cancelled, the approval timed out or Discord refused the secret: retrying cannot help until the settings change.</summary>
@@ -696,6 +723,8 @@ public sealed partial class DiscordMonitor(ConfigStore config, ILogger<DiscordMo
         lock (_lock)
         {
             if (_closed) return; // the connection this poll came from has ended (ReadLoop)
+            if (snapshot.ChannelId != _snap.ChannelId || !_snap.Connected)
+                _callObservedAt = snapshot.ChannelId is null ? null : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var stale = rev != _voiceRev;
             _snap = stale
                 ? snapshot with { Muted = _snap.Muted, Deafened = _snap.Deafened, InputMode = _snap.InputMode, PttKey = _snap.PttKey }
@@ -760,7 +789,8 @@ public sealed partial class DiscordMonitor(ConfigStore config, ILogger<DiscordMo
     /// <see cref="DiscordConfig.AllowControl"/> switch (off by default) for shortcuts and custom widgets.
     /// </summary>
     public static bool ControlAllowed(AgentConfig cfg) =>
-        cfg.Discord.AllowControl || WidgetControl(cfg);
+        cfg.Discord.AllowControl || WidgetControl(cfg) ||
+        cfg.Widgets(enabledPagesOnly: true).Any(w => w.Type == "discord-call" && w.Bool("control") == true);
 
     /// <summary>A Discord widget with the control option on, on a page that is enabled: the global switch does not count.</summary>
     public static bool WidgetControl(AgentConfig cfg) =>

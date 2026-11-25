@@ -215,7 +215,8 @@
           return { gpu: gpus[0], gpus };
         })(),
       },
-      media: { app: 'Spotify', title, artist, album, durMs: dur, posMs: position(), playing: player.playing, canSeek: true, artId: player.track + 1 },
+      media: { app: 'Spotify', title, artist, album, durMs: dur, posMs: position(), playing: player.playing, canSeek: true,
+        artId: player.track + 1, appVolume: mediaVolume() },
       audio: { ...audio },
       ping: { host: '1.1.1.1', ms: wave(13, 9, 16), avgMs: 12, lossPct: 0 },
       // the microphone is "in use" for 20 s of every minute, to show the On air widget
@@ -395,6 +396,10 @@
       { id: 'saver', name: 'Power saver', kind: 'power-plan', state: 'Available', available: true }], midi: [],
   };
   const actionState = {}; // what a configured control last did: "Running", "Finished", "Stopped"…
+  const mediaVolume = () => {
+    const { id, volume, muted } = deck.audio.sessions.find(s => s.id === 'spotify');
+    return { target: id, volume, muted };
+  };
   async function deckState() {
     const c = await config(), controls = c.controls || {};
     // the output device follows the computer's volume, and the first player is the one in /api/state
@@ -589,7 +594,18 @@
       else return json({}, 400);
       return json({ ...audio });
     }
-    if (path.startsWith('/api/media/') && method === 'POST') return json({}, mediaAction(path.slice(11), q.has('ms') ? +q.get('ms') : null) ? 200 : 400);
+    if (path === '/api/media/volume' && method === 'POST') {
+      const session = deck.audio.sessions.find(s => s.id === 'spotify');
+      if (q.get('target') !== session.id) return json({}, 400);
+      const op = q.get('op'), level = q.has('level') ? +q.get('level') : null;
+      if (op === 'mute' && level === null) session.muted = !session.muted;
+      else if (op === null && Number.isInteger(level) && level >= 0 && level <= 100) session.volume = level;
+      else return json({}, 400);
+      return json(mediaVolume());
+    }
+    if (path.startsWith('/api/media/') && method === 'POST') {
+      return mediaAction(path.slice(11), q.has('ms') ? +q.get('ms') : null) ? json({ media: state().media }) : json({}, 400);
+    }
     if (path === '/api/procs/kill' && method === 'POST') {
       // KillResult; refused unless an enabled page has a processes widget that allows it (AgentConfig.AllowKill)
       const c = await config(), allowed = (c.pages || []).filter((p) => p.enabled !== false).some((p) => widgets({ pages: [p] }).some((w) => w.type === 'processes' && w.options?.allowKill !== false));

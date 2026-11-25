@@ -72,10 +72,10 @@ public sealed class AgentConfig
         display = Display,
         pages = PagesFor(deviceId).Select(p => new
         {
-            p.Id, p.Title, p.Icon, p.Enabled, p.IdleSec, p.Appearance,
+            p.Id, p.Title, p.Icon, p.Enabled, p.IdleSec, p.Appearance, p.Orientation,
             widgets = (p.Widgets ?? []).Select(w => new
             {
-                w.Id, w.Type, w.X, w.Y, w.W, w.H, w.Appearance,
+                w.Id, w.Type, w.X, w.Y, w.W, w.H, w.Appearance, w.Portrait,
                 // command widgets: only what the panel shows; the scripts (command, commandUnix, …) stay on this computer
                 options = StackWidgets.PublicOptions(w),
             }),
@@ -89,7 +89,7 @@ public sealed class AgentConfig
         }),
         // names only (for the Rules widget); what a rule matches on stays here
         rules = Rules.Select(r => new { r.Id, r.Name, r.Enabled, r.When }),
-        charge = new { Charge.Enabled, Charge.Min, Charge.Max },
+        charge = new { Charge.Enabled, Charge.Reminders, Charge.Min, Charge.Max },
         // OpenCode prompts: how long the Allow always button waits before it can be pressed (it saves a pattern)
         opencode = new { OpenCode.AlwaysCountdownSec },
     };
@@ -178,7 +178,7 @@ public sealed class DisplayConfig
     public bool FinishToast { get; set; } = true;
     /// <summary>The phone's volume keys switch pages.</summary>
     public bool VolumeKeys { get; set; } = true;
-    /// <summary>landscape, portrait or auto (follow the phone). In portrait the widgets are arranged automatically.</summary>
+    /// <summary>Default orientation: landscape, portrait or auto (follow the phone).</summary>
     public string Orientation { get; set; } = "landscape";
     /// <summary>default, amoled, midnight, warm or graphite.</summary>
     public string Theme { get; set; } = "default";
@@ -215,7 +215,7 @@ public sealed class DisplayConfig
     public bool KeepAwake { get; set; } = true;
     /// <summary>Over USB, wake the phone and open PhoneBox when it is plugged in (or adb reconnects). Off: the panel opens only
     /// when you start it on the phone, from the tray or the settings page.</summary>
-    public bool OpenOnConnect { get; set; } = true;
+    public bool OpenOnConnect { get; set; }
     /// <summary>On macOS, sleep the connected phone when the computer locks; wake it and open PhoneBox after unlock.</summary>
     public bool FollowComputerLock { get; set; }
     /// <summary>The page the panel returns to (idle return, Back); null = the first page.</summary>
@@ -308,6 +308,8 @@ public sealed class PageConfig
     public bool Enabled { get; set; } = true;
     /// <summary>Return home after this many idle seconds on this page; null = the display setting, 0 = stay.</summary>
     public int? IdleSec { get; set; }
+    /// <summary>Optional override of the display orientation while this page is open.</summary>
+    public string? Orientation { get; set; }
     /// <summary>Widgets on a 12 x 6 grid.</summary>
     public List<WidgetConfig>? Widgets { get; set; }
 
@@ -328,6 +330,7 @@ public sealed class WidgetConfig
     public int Y { get; set; }
     public int W { get; set; } = 1;
     public int H { get; set; } = 1;
+    public PortraitPosition? Portrait { get; set; }
     public Dictionary<string, JsonElement>? Options { get; set; }
 
     public JsonElement? Opt(string key) => Options is not null && Options.TryGetValue(key, out var v) ? v : null;
@@ -335,7 +338,18 @@ public sealed class WidgetConfig
     public int? Int(string key) => Opt(key) is { ValueKind: JsonValueKind.Number } v && v.TryGetDouble(out var d) ? (int)d : null;
     public bool? Bool(string key) => Opt(key) is { } v ? v.ValueKind switch { JsonValueKind.True => true, JsonValueKind.False => false, _ => null } : null;
     public void Set(string key, object? value) => (Options ??= [])[key] = JsonSerializer.SerializeToElement(value);
-    public WidgetConfig Clone() => new() { Id = Id, Type = Type, X = X, Y = Y, W = W, H = H, Appearance = Appearance?.Clone(), Options = Options?.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()) };
+    public WidgetConfig Clone() => new() { Id = Id, Type = Type, X = X, Y = Y, W = W, H = H, Portrait = Portrait, Appearance = Appearance?.Clone(), Options = Options?.ToDictionary(kv => kv.Key, kv => kv.Value.Clone()) };
+}
+
+public sealed record PortraitPosition(int X, int Y, int W, int H)
+{
+    public PortraitPosition Clamp(int minWidth, int minHeight)
+    {
+        const int columns = 6, maxRows = 200;
+        var width = Math.Clamp(W, Math.Min(minWidth, columns), columns);
+        var height = Math.Clamp(H, minHeight, maxRows);
+        return new(Math.Clamp(X, 0, columns - width), Math.Clamp(Y, 0, maxRows - height), width, height);
+    }
 }
 
 /// <summary>
@@ -392,6 +406,7 @@ public sealed class RuleConfig
 public sealed class ChargeConfig
 {
     public bool Enabled { get; set; }
+    public bool Reminders { get; set; }
     public int Min { get; set; } = 50;
     public int Max { get; set; } = 80;
     /// <summary>"ha" (a Home Assistant switch entity) or "shortcuts" (one shortcut for power on, one for off).</summary>
@@ -777,9 +792,14 @@ public sealed partial class ConfigStore(string path)
             var unique = id;
             for (var i = 2; !consoleIds.Add(unique); i++) unique = $"{id}-{i}";
             p.Id = unique;
-            p.Keys = (p.Keys ?? []).Where(k => k is not null && !string.IsNullOrWhiteSpace(k.Keys)).Take(100).ToList();
+            p.Keys = (p.Keys ?? []).Where(k => k is not null && (!string.IsNullOrWhiteSpace(k.Keys) || !string.IsNullOrWhiteSpace(k.Label))).Take(100).ToList();
             // a key without a label shows its keys on the phone ("ctrl+z")
-            foreach (var k in p.Keys) { k.Keys = k.Keys.Trim(); k.Label = Cap(k.Label?.Trim() is { Length: > 0 } l ? l : k.Keys, 24); }
+            foreach (var k in p.Keys)
+            {
+                k.Keys = k.Keys?.Trim() ?? "";
+                k.Label = Cap(k.Label?.Trim() is { Length: > 0 } l ? l : k.Keys, 24);
+                k.Icon = k.Icon?.Trim() is { Length: > 0 and <= 12 } icon ? IconText.Repair(icon) : null;
+            }
             p.DialLeft = string.IsNullOrWhiteSpace(p.DialLeft) ? null : p.DialLeft.Trim();
             p.DialRight = string.IsNullOrWhiteSpace(p.DialRight) ? null : p.DialRight.Trim();
             p.DialPress = string.IsNullOrWhiteSpace(p.DialPress) ? null : p.DialPress.Trim();
@@ -879,6 +899,7 @@ public sealed partial class ConfigStore(string path)
             p.Icon = IconText.Repair(p.Icon);
             p.Title = p.Title.Trim();
             if (p.IdleSec is { } idleSec) p.IdleSec = Math.Clamp(idleSec, 0, 86400);
+            if (p.Orientation is not ("portrait" or "landscape" or "auto")) p.Orientation = null;
             var originalId = p.Id;
             p.Id = reservedPages.TryGetValue(p, out var reservedPage)
                 ? reservedPage : UniqueLayoutId(LayoutId(tpl?.Id ?? p.Title, "page"), pageIds);
@@ -899,6 +920,8 @@ public sealed partial class ConfigStore(string path)
                 w.H = Math.Clamp(w.H, Math.Min(minH, Catalog.Rows), Catalog.Rows);
                 w.X = Math.Clamp(w.X, 0, Catalog.Cols - w.W);
                 w.Y = Math.Clamp(w.Y, 0, Catalog.Rows - w.H);
+                if (w.Portrait is { } portrait)
+                    w.Portrait = portrait.Clamp(minW, minH);
                 w.Id = reservedWidgets.TryGetValue(w, out var reservedWidget)
                     ? reservedWidget : UniqueLayoutId(LayoutId(w.Type, w.Type), widgetIds);
                 widgets.Add(w);

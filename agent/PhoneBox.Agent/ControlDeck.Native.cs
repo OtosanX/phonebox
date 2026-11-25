@@ -16,7 +16,7 @@ namespace PhoneBox.Agent;
 
 internal sealed partial class WindowsDeckNative(MediaMonitor? mediaMonitor = null, ILogger? log = null) : IDeckNative
 {
-    private static readonly ConcurrentDictionary<(int Pid, long Started), (string Raw, string Friendly)> ProcessNames = new();
+    private static readonly ConcurrentDictionary<(int Pid, long Started), (string Raw, string Friendly, string? AppId)> ProcessNames = new();
     private readonly Lock _gate = new();
     private readonly Dictionary<string, (WasapiPlayer Output, WaveStream Reader, MMDevice Device)> _sounds = [];
     private readonly Dictionary<string, IDisposable> _hls = [];
@@ -69,7 +69,7 @@ internal sealed partial class WindowsDeckNative(MediaMonitor? mediaMonitor = nul
                                     sessions.Add(new(s.GetSessionInstanceIdentifier, name, pid, d.ID,
                                         (int)Math.Round(s.SimpleAudioVolume.Volume * 100), s.SimpleAudioVolume.Mute,
                                         s.AudioMeterInformation.MasterPeakValue, names.Raw,
-                                        s.State == AudioSessionState.AudioSessionStateActive));
+                                        s.State == AudioSessionState.AudioSessionStateActive) { AppUserModelId = names.AppId });
                                 }
                                 catch (COMException) { /* A session can end during enumeration; keep the other sessions. */ }
                             }
@@ -83,23 +83,24 @@ internal sealed partial class WindowsDeckNative(MediaMonitor? mediaMonitor = nul
         }
     }
 
-    private static (string Raw, string Friendly) ProcessName(int pid)
+    private static (string Raw, string Friendly, string? AppId) ProcessName(int pid)
     {
-        if (pid == 0) return ("System sounds", "System sounds");
+        if (pid == 0) return ("System sounds", "System sounds", null);
         try
         {
             using var p = Process.GetProcessById(pid);
             var processName = p.ProcessName;
             // a service process may refuse its start time to an agent that isn't elevated: show its name, uncached
             long started;
-            try { started = p.StartTime.ToUniversalTime().Ticks; } catch { return (processName, processName); }
+            try { started = p.StartTime.ToUniversalTime().Ticks; } catch { return (processName, processName, null); }
             var key = (pid, started);
             if (ProcessNames.TryGetValue(key, out var cached)) return cached;
 
             // Packaged desktop apps often expose a helper executable to Core Audio (for example DCv2.exe),
             // while Windows' own mixer shows the package's friendly display name (for example MSI Center).
+            var appId = ProcessAppId(p);
             var packageName = PackageDisplayName(p);
-            if (UsefulName(packageName, processName)) return Cache(key, processName, packageName!);
+            if (UsefulName(packageName, processName)) return Cache(key, processName, packageName!, appId);
 
             try
             {
@@ -108,20 +109,20 @@ internal sealed partial class WindowsDeckNative(MediaMonitor? mediaMonitor = nul
                 if (QueryFullProcessImageName(p.Handle, 0, path, ref length) && length > 0)
                 {
                     var version = FileVersionInfo.GetVersionInfo(new string(path, 0, (int)length));
-                    if (UsefulName(version.FileDescription, processName)) return Cache(key, processName, version.FileDescription!);
-                    if (UsefulName(version.ProductName, processName)) return Cache(key, processName, version.ProductName!);
+                    if (UsefulName(version.FileDescription, processName)) return Cache(key, processName, version.FileDescription!, appId);
+                    if (UsefulName(version.ProductName, processName)) return Cache(key, processName, version.ProductName!, appId);
                 }
             }
             catch { /* Protected processes may not expose their executable metadata. */ }
-            return Cache(key, processName, processName);
+            return Cache(key, processName, processName, appId);
         }
-        catch { return ("", "Application"); }
+        catch { return ("", "Application", null); }
     }
 
-    private static (string Raw, string Friendly) Cache((int Pid, long Started) key, string raw, string friendly)
+    private static (string Raw, string Friendly, string? AppId) Cache((int Pid, long Started) key, string raw, string friendly, string? appId)
     {
         if (ProcessNames.Count > 1024) ProcessNames.Clear();
-        return ProcessNames.GetOrAdd(key, (raw, friendly));
+        return ProcessNames.GetOrAdd(key, (raw, friendly, appId));
     }
 
     private static bool UsefulName(string? value, string processName)
@@ -151,6 +152,23 @@ internal sealed partial class WindowsDeckNative(MediaMonitor? mediaMonitor = nul
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetPackageFullName(IntPtr process, ref uint packageFullNameLength,
         [Out] char[]? packageFullName);
+
+    private static string? ProcessAppId(Process process)
+    {
+        const int insufficientBuffer = 122;
+        try
+        {
+            uint length = 0;
+            if (GetApplicationUserModelId(process.Handle, ref length, null) != insufficientBuffer || length == 0) return null;
+            var id = new char[length];
+            return GetApplicationUserModelId(process.Handle, ref length, id) == 0
+                ? new string(id, 0, (int)length - 1) : null;
+        }
+        catch { return null; }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int GetApplicationUserModelId(IntPtr process, ref uint length, [Out] char[]? appId);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool QueryFullProcessImageName(IntPtr process, int flags, [Out] char[] fileName, ref uint size);

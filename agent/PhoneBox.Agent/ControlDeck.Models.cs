@@ -46,7 +46,11 @@ public sealed record DeckItem(string Id, string Name, string Kind, string? State
 public sealed record DeckDevice(string Id, string Name, string Direction, bool Default, int Volume, bool Muted,
     double Peak, int Channels, bool CanControl = true, IReadOnlyList<int>? ChannelVolumes = null);
 public sealed record DeckSession(string Id, string Name, int Pid, string DeviceId, int Volume, bool Muted, double Peak,
-    string? ProcessName = null, bool Active = true);
+    string? ProcessName = null, bool Active = true)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? AppUserModelId { get; init; }
+}
 public sealed record DeckAudio(bool Available, string? Error, IReadOnlyList<DeckDevice> Devices, IReadOnlyList<DeckSession> Sessions,
     IReadOnlyDictionary<string, string>? Defaults = null);
 public sealed record DeckMedia(string Id, string Name, string Title, bool Playing, long Position, long Duration,

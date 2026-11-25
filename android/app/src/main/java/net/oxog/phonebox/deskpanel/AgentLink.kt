@@ -140,6 +140,14 @@ class AgentLink(private val context: Context) {
         return null
     }
 
+    internal fun usbStreamReady(): Boolean = try {
+        usb("GET", "/api/state", readTimeout = 750)?.let { reply ->
+            reply.body.use { reply.code == 200 }
+        } ?: false
+    } catch (_: java.io.IOException) {
+        false
+    }
+
     /** Forwards a request (method + path with query) to the agent over the best available route. */
     fun request(method: String, pathAndQuery: String): Reply = request(method, pathAndQuery, null, null)
 
@@ -304,6 +312,11 @@ class AgentLink(private val context: Context) {
         // A workflow or service restart can take longer than a state poll.
         c.readTimeout = if (controlPost) 30000 else readTimeout
         c.useCaches = false
+        val legacyTls = Build.VERSION.SDK_INT <= Build.VERSION_CODES.M
+        if (legacyTls) {
+            LegacyDescriptorPressure.check()
+            c.setRequestProperty("Connection", "close")
+        }
         if (method == "POST") {
             c.doOutput = true
             if (body != null) {
@@ -326,8 +339,13 @@ class AgentLink(private val context: Context) {
             c.disconnect()
             return Reply(502, "application/json", ByteArrayInputStream("""{"error":"unexpected response"}""".toByteArray()))
         }
-        val body = (if (code >= 400) c.errorStream else c.inputStream) ?: ByteArrayInputStream(ByteArray(0))
-        return Reply(code, c.contentType, body)
+        val type = c.contentType
+        val body = if (code >= 400) c.errorStream else c.inputStream
+        if (body == null) {
+            c.disconnect()
+            return Reply(code, type, ByteArrayInputStream(ByteArray(0)))
+        }
+        return Reply(code, type, if (legacyTls) LegacyResponseBody(body, c::disconnect) else body)
     }
 
     private val macRefreshThrottle = RefreshThrottle(10 * 60_000)

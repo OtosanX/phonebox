@@ -112,6 +112,61 @@ public sealed partial class ControlDeck : BackgroundService
         || session.ProcessName?.Equals(value, StringComparison.OrdinalIgnoreCase) == true;
     private void Invalidate() { lock (_state) _audio = null; }
 
+    internal static DeckSession[] MediaAudioSessions(DeckAudio audio, string source)
+    {
+        if (!audio.Available || string.IsNullOrWhiteSpace(source)) return [];
+        var sessions = audio.Sessions.Where(s => s.Pid > 0).ToArray();
+        var matches = sessions.Where(s => string.Equals(s.AppUserModelId, source, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (matches.Length == 0 && !source.Contains('!'))
+        {
+            var executable = source.Replace('\\', '/').Split('/')[^1].ToLowerInvariant();
+            if (executable.EndsWith(".exe")) executable = executable[..^4];
+            executable = executable switch
+            {
+                var id when id.StartsWith("chrome._crx_", StringComparison.Ordinal) => "chrome",
+                var id when id.StartsWith("msedge._crx_", StringComparison.Ordinal) => "msedge",
+                var id when id.StartsWith("firefoxtaskbarid", StringComparison.Ordinal) || id == "308046b0af4a39cb" => "firefox",
+                _ => executable,
+            };
+            if (executable.Length > 0)
+                matches = sessions.Where(s => string.Equals(s.ProcessName, executable, StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+        var defaultOutput = audio.Defaults?.GetValueOrDefault("output:1");
+        return matches.OrderByDescending(s => s.Active).ThenByDescending(s => s.DeviceId == defaultOutput).ToArray();
+    }
+
+    public MediaSnapshot? WithMediaVolume(MediaSnapshot? media)
+    {
+        if (media?.SourceId is not { Length: > 0 } source) return media;
+        var sessions = MediaAudioSessions(Audio(), source);
+        return media with { AppVolume = sessions.FirstOrDefault() is { } session
+            ? new(source, session.Volume, sessions.All(s => s.Muted)) : null };
+    }
+
+    public MediaAppVolume? SetMediaVolume(string source, int? level, string? op)
+    {
+        if (!(op == "mute" && level is null || op is null && level is >= 0 and <= 100)) return null;
+        try
+        {
+            var sessions = MediaAudioSessions(_native.Audio(), source);
+            if (sessions.Length == 0) return null;
+            bool? muted = op == "mute" ? !sessions.All(s => s.Muted) : null;
+            var changed = false;
+            foreach (var session in sessions)
+                changed |= _native.Session(session.Id, level, muted);
+            if (!changed) return null;
+            var updated = MediaAudioSessions(_native.Audio(), source);
+            return updated.FirstOrDefault() is { } current
+                ? new(source, current.Volume, updated.All(s => s.Muted)) : null;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Could not change the media app volume");
+            return null;
+        }
+        finally { Invalidate(); }
+    }
+
     private bool TryMute(string id)
     {
         try { return _native.Device(id, null, true); }

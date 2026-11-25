@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 namespace PhoneBox.Agent;
 
-public sealed record DiscordShareApp(int Pid, string Name);
+public sealed record DiscordShareApp(int Pid, string Name, string? Title = null);
 
 /// <param name="Code">What the panel shows in its own language (see pc.js); <paramref name="Error"/> is for other callers and the log.</param>
 public sealed record DiscordShareError(string Code, string Error);
@@ -105,7 +105,7 @@ public sealed partial class DiscordMonitor
     /// <summary>Whether you are sharing, as Discord last said; null before it has, and between a stop and Discord's next word.</summary>
     internal bool? Sharing { get { lock (_lock) return _sharing; } }
 
-    /// <summary>The apps with a window on this computer, by name only (no window titles), one per process. Windows only.</summary>
+    /// <summary>The apps with a main window on this computer, one per process. Windows only.</summary>
     internal static List<DiscordShareApp> RunningApps(int max = ShareAppsMax)
     {
         if (!OperatingSystem.IsWindows()) return [];
@@ -117,16 +117,18 @@ public sealed partial class DiscordMonitor
             {
                 try
                 {
-                    if (p.Id == self || p.SessionId == 0 || ShareSkip.Contains(p.ProcessName) || p.MainWindowHandle == 0 || string.IsNullOrWhiteSpace(p.MainWindowTitle)) continue;
+                    if (p.Id == self || p.SessionId == 0 || ShareSkip.Contains(p.ProcessName) || p.MainWindowHandle == 0) continue;
+                    var title = p.MainWindowTitle.Trim();
+                    if (title.Length == 0) continue;
                     string? name = null;
                     try { name = p.MainModule?.FileVersionInfo.FileDescription; } catch { } // elevated or protected: the process name will do
-                    apps.Add(new(p.Id, string.IsNullOrWhiteSpace(name) ? p.ProcessName : name.Trim()));
+                    apps.Add(new(p.Id, string.IsNullOrWhiteSpace(name) ? p.ProcessName : name.Trim(), title));
                 }
                 catch { } // exited meanwhile
             }
         }
         // alphabetical, not by window order: the list must not reshuffle while you tap it
-        return [.. apps.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(a => a.Pid).Take(max)];
+        return [.. apps.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase).ThenBy(a => a.Pid).Take(max)];
     }
 
     private bool ShareAppsOld() => _shareAppsAt == 0 || Environment.TickCount64 - _shareAppsAt > ShareAppsCacheMs; // under _lock
@@ -162,7 +164,7 @@ public sealed partial class DiscordMonitor
         var list = apps && old ? ListApps() : null;
         lock (_lock)
         {
-            // turned off (or disconnected) while the apps were read: their names are neither kept nor sent
+            // turned off (or disconnected) while the apps were read: the list is neither kept nor sent
             if (!ShareWanted(config.Get())) return new { enabled = false };
             if (!ShareOn || !_snap.Connected) return new { enabled = true, ready = false, refused = _shareRefused, error = _snap.Error };
             if (list is not null) { _shareApps = list; _shareAppsAt = Environment.TickCount64; }

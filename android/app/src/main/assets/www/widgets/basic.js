@@ -1,6 +1,8 @@
 import { $, API, D, LEVEL_COLOR, LOCALE, mediaHtml, METRICS, PANEL_HEADERS, PREVIEW, Q_STYLE, S_ORDER, ago, api, averageColor, buildLayout, buzz, cfg, chime, cfgVersion, chart, color, cssVar, currentProcessesSort, emit, fillIcon, fmtClock, fmtDur, fmtHM, fmtMem, fmtReset, fmtTime, fmtValue, gotoProcesses, gpuMem, gpusOf, h, en, haptic, hasProcessesPage, hist, hour12, icon, keyButton, setKeyFace, labelled, levelOf, media, metricText, online, openSheet, paceInfo, pad, prRow, pushView, quotaProviders, r1, registerProcessesSorter, renderStatus, ringSvg, setArtColor, configMark, configReadSince, localWriteStored, setMediaState, setVolDragging, shortDur, shortGpu, store, t, tick, toast, volDragging, wxBlock, wxDeg, wxIcon, emo, rich, tp, tpv, quotaText, pages, curPage, gotoPageRef } from '../main.js';
 import { W } from '../registry.js';
+import { nextUsHoliday } from '../holidays.js';
 import { invalidateDeckState } from './controls.js';
+import { sparkLine } from './helpers.js';
 
 function bindProcessLink(box, sortTarget) {
   if (!hasProcessesPage()) return;
@@ -23,11 +25,19 @@ W.clock = {
     const hh = h('span', 'hh', '--'), colon = h('span', 'colon', ':'), mm = h('span', 'mm', '--'), ss = h('span', 'sec'), ap = h('span', 'ap');
     const date = o.date !== false ? h('div', 'date') : null;
     const wx = o.weather !== false ? wxBlock() : null;
-    box.append(status || '', h('div', 'clock', hh, colon, mm, ss, ap), date || '', wx || '');
+    const details = status || date || wx ? h('div', 'clock-details', status, date, wx) : null;
+    box.append(h('div', 'clock', hh, colon, mm, ss, ap));
+    if (details) box.append(details);
     box.style.setProperty('--tf', (0.84 - (status ? 0.1 : 0) - (date ? 0.11 : 0) - (wx ? 0.2 : 0)).toFixed(2));
+    const fit = details && typeof ResizeObserver === 'function' ? new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      box.classList.toggle('clock-wide', width >= 330 && height >= 84 && width >= height * 1.8);
+    }) : null;
+    fit?.observe(box);
     return {
       // without the weather line the clock must not make the panel fetch the weather
       needs: wx ? W.clock.needs : W.clock.needs.filter((k) => k !== 'weather'),
+      destroy() { fit?.disconnect(); },
       update(kind) {
         if (kind === 'tick') {
           const now = new Date();
@@ -109,6 +119,17 @@ W.media = {
     box.innerHTML = mediaHtml();
     const q = (s) => box.querySelector(s);
     const img = q('.art'), vol = q('.volr');
+    const artSlot = q('.m-art-slot');
+    const sizeWatcher = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => {
+      const card = entries.find(entry => entry.target === box)?.contentRect;
+      if (card) box.classList.toggle('media-stacked', card.width >= 145 && card.height >= 235 && card.height >= card.width * 1.04);
+      if (box.classList.contains('media-stacked')) {
+        const { width, height } = artSlot.getBoundingClientRect();
+        artSlot.style.setProperty('--media-cover-size', Math.floor(Math.min(width, height)) + 'px');
+      }
+    }) : null;
+    sizeWatcher?.observe(box);
+    sizeWatcher?.observe(artSlot);
     const sourceIcon = q('.m-source-icon');
     const sourceIcons = {
       YouTube: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="5" fill="#ff0033"/><path d="m10 8 6 4-6 4z" fill="#fff"/></svg>',
@@ -116,6 +137,10 @@ W.media = {
       'Internet Radio': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 6.8 18.5 2a1 1 0 0 1 .7 1.9L10.8 7H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2.2zm1.8 5.2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm6 1.5v1.8h4v-1.8h-4zm0 3.2v1.8h4v-1.8h-4z" fill="#38bdf8"/></svg>',
     };
     let artId = -1, volTimer = 0, volumeRelease = 0;
+    let volumeTarget = null, volumeRequest = Promise.resolve();
+    const mute = q('.mute');
+    vol.setAttribute('aria-label', tp('Playback app volume'));
+    mute.setAttribute('aria-label', tp('Mute playback app'));
     img.addEventListener('load', () => { img.classList.add('on'); setArtColor(averageColor(img)); });
     img.addEventListener('error', () => img.classList.remove('on'));
     box.querySelectorAll('[data-media]').forEach((btn) => btn.addEventListener('click', async () => {
@@ -199,22 +224,39 @@ W.media = {
       clearTimeout(volumeRelease);
       setVolDragging(vol, false);
     };
+    const sendVolume = (query) => {
+      const binding = volumeTarget;
+      if (!binding) return;
+      volumeRequest = volumeRequest.then(async () => {
+        if (binding !== volumeTarget || D.state?.media?.appVolume?.target !== binding.id) return;
+        try {
+          const a = await api('/media/volume?target=' + encodeURIComponent(binding.id) + '&' + query, 'POST');
+          if (binding !== volumeTarget || D.state?.media?.appVolume?.target !== a.target) return;
+          D.state.media.appVolume = a;
+          emit('state');
+        } catch (_) {}
+      });
+    };
     vol.addEventListener('input', () => {
+      if (!volumeTarget) return;
       clearTimeout(volumeRelease);
       setVolDragging(vol, true);
       paintVol(vol.value);
       clearTimeout(volTimer);
-      volTimer = setTimeout(() => api('/volume?level=' + vol.value, 'POST').catch(() => {}), 120);
+      const level = vol.value;
+      volTimer = setTimeout(() => sendVolume('level=' + level), 120);
     });
     vol.addEventListener('change', () => {
       clearTimeout(volumeRelease);
-      volumeRelease = setTimeout(() => setVolDragging(vol, false), 600);
+      volumeRelease = setTimeout(() => {
+        setVolDragging(vol, false);
+        emit('state');
+      }, 600);
     });
     vol.addEventListener('pointercancel', cancelVolumeDrag);
-    q('.mute').addEventListener('click', async () => {
+    mute.addEventListener('click', () => {
       haptic();
-      if ((!D.state?.audio || D.state.audio.canControl === false)) return;
-      try { const a = await api('/volume?op=mute', 'POST'); D.state.audio = a; emit('state'); } catch (_) {}
+      sendVolume('op=mute');
     });
 
     return {
@@ -234,14 +276,23 @@ W.media = {
           }
           return;
         }
-        const m = D.state?.media, a = D.state?.audio;
-        vol.disabled = (!a || a.canControl === false);
-        box.classList.toggle('volume-unavailable', (!a || a.canControl === false));
-        q('.mute').disabled = (!a || a.canControl === false);
+        const m = D.state?.media, a = m?.appVolume;
+        if (volumeTarget?.id !== a?.target) {
+          cancelVolumeDrag();
+          volumeTarget = a ? { id: a.target } : null;
+        }
+        vol.disabled = mute.disabled = !a;
+        vol.title = mute.title = a ? tp('Playback app volume') : tp('Playback app volume unavailable');
+        mute.setAttribute('aria-pressed', String(!!a?.muted));
+        box.classList.toggle('volume-unavailable', !a);
         box.classList.toggle('muted-on', !!a?.muted);
         if (a) {
-          if (!volDragging) { vol.value = a.volume; paintVol(a.volume); }
-        } else q('.vol-val').textContent = 'n/a';
+          if (volDragging !== vol) { vol.value = a.volume; paintVol(a.volume); }
+        } else {
+          vol.value = 0;
+          paintVol(0);
+          q('.vol-val').textContent = '—';
+        }
         box.classList.toggle('idle', !m);
         if (!m) {
           endScrub(false);
@@ -285,7 +336,7 @@ W.media = {
           else { img.classList.remove('on'); setArtColor(null); }
         }
       },
-      destroy() { endScrub(false); cancelVolumeDrag(); },
+      destroy() { sizeWatcher?.disconnect(); endScrub(false); cancelVolumeDrag(); volumeTarget = null; },
     };
   },
 };
@@ -1160,6 +1211,13 @@ W.pomodoro = {
   },
 };
 
+function countdownText(ms) {
+  const seconds = Math.floor(ms / 1000);
+  const days = Math.floor(seconds / 86400), hours = Math.floor(seconds / 3600) % 24;
+  const minutes = Math.floor(seconds / 60) % 60;
+  return days ? `${days}d ${hours}h` : hours ? `${hours}h ${pad(minutes)}m` : `${minutes}:${pad(seconds % 60)}`;
+}
+
 W.countdown = {
   needs: ['tick'],
   create(box, { o }) {
@@ -1182,14 +1240,35 @@ W.countdown = {
     sub.textContent = new Date(target).toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + fmtHM(new Date(target));
     return {
       update() {
-        let d = target - Date.now();
+        const d = target - Date.now();
         const past = d < 0;
-        d = Math.abs(d);
-        const days = Math.floor(d / 86400000), hrs = Math.floor((d % 86400000) / 3600000), mins = Math.floor((d % 3600000) / 60000), secs = Math.floor((d % 60000) / 1000);
-        big.textContent = (past ? '+' : '') + (days ? `${days}d ${hrs}h` : hrs ? `${hrs}h ${pad(mins)}m` : `${mins}:${pad(secs)}`);
+        big.textContent = (past ? '+' : '') + countdownText(Math.abs(d));
         box.classList.toggle('past', past);
       },
     };
+  },
+};
+
+W['next-holiday'] = {
+  needs: ['tick'],
+  create(box) {
+    const name = h('div', 'cd-l'), time = h('div', 'cd-v'), date = h('div', 'cd-s');
+    box.append(name, time, date);
+    let dayKey, holiday;
+    const update = () => {
+      const now = new Date();
+      const key = now.getFullYear() * 10000 + now.getMonth() * 100 + now.getDate();
+      if (key !== dayKey) {
+        dayKey = key;
+        holiday = nextUsHoliday(now);
+        name.textContent = name.title = tp(holiday.name);
+        date.textContent = holiday.date.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+        box.classList.toggle('holiday-today', holiday.isToday);
+      }
+      time.textContent = holiday.isToday ? tp('Today') : countdownText(holiday.date - now);
+    };
+    update();
+    return { update };
   },
 };
 
@@ -1380,12 +1459,29 @@ W.push = {
         if (lastAt === 0) return;
         lastAt = 0;
         box.style.removeProperty('--c');
+        if (key === 'game-fps') {
+          box.replaceChildren(h('div', 'w-title', 'Game FPS'), h('div', 'w-sub', 'Waiting for PC capture'));
+          return;
+        }
         box.replaceChildren(h('div', 'w-title', o.title || key), h('div', 'push-empty', t('w.noDataYet'), h('code', null, `POST /api/push/${key}`)));
         return;
       }
       const ageEl = box.querySelector('.push-age');
       if (item.at === lastAt) { if (ageEl) ageEl.textContent = ago(item.at); return; }
       lastAt = item.at;
+      if (key === 'game-fps' && item.data) {
+        const read = (points, unit, color) => {
+          const values = (Array.isArray(points) ? points.slice(-60) : []).filter(value => Number.isFinite(value) && value > 0);
+          const value = values[values.length - 1];
+          const canvas = h('canvas');
+          const row = h('div', 'game-fps-readout', h('b', null, value == null ? '—' : value.toFixed(unit === 'ms' ? 1 : 0) + ' ' + unit), canvas);
+          requestAnimationFrame(() => sparkLine(canvas, values, color));
+          return row;
+        };
+        box.replaceChildren(h('div', 'game-fps-pair',
+          read(item.data.fps, 'FPS', '#71d2c2'), read(item.data.frameMs, 'ms', '#87acf5')));
+        return;
+      }
       const v = pushView(item);
       const lvl = levelOf(v);
       const c = v.color || LEVEL_COLOR[lvl] || '';

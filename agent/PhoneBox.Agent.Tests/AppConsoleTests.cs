@@ -42,6 +42,70 @@ public sealed class AppConsoleTests : IDisposable
     private static JsonElement Json(object body) => JsonSerializer.SerializeToElement(body);
 
     [Fact]
+    public void EditingRequiresAnOptInAndSavesOneBindingWithoutSendingIt()
+    {
+        var console = Make();
+        var store = new ConfigStore(_path);
+        Assert.Equal(403, console.Bindings(null, "p/c").Status);
+        var cfg = store.Get();
+        cfg.Pages[0].Widgets![0].Set("editProfile", "ps");
+        Assert.Null(store.Save(JsonSerializer.Serialize(cfg, ConfigStore.WriteOpts), store.Version));
+        var version = store.Version;
+        Assert.Equal(200, console.Bindings(null, "p/c").Status);
+        Assert.Equal(403, console.Bindings(null, "q/c").Status);
+        Assert.Equal(400, console.EditBinding(null, "p/c", 0, "Skill", "1, 2", version).Status);
+        Assert.Equal(200, console.EditBinding(null, "p/c", 0, "Skill", "shift+1", version, "⚔️").Status);
+        Assert.Equal("shift+1", store.Get().Console.Profiles[0].Keys[0].Keys);
+        Assert.Equal("⚔️", store.Get().Console.Profiles[0].Keys[0].Icon);
+        Assert.Equal(409, console.EditBinding(null, "p/c", 0, "Stale", "2", version).Status);
+        Assert.Empty(_sent);
+    }
+
+    [Fact]
+    public async Task ANewFolderUsesTheSameAppAndOnlyTheOwningWidgetCanEditIt()
+    {
+        var console = Make();
+        var store = new ConfigStore(_path);
+        var cfg = store.Get();
+        var widget = cfg.Pages[0].Widgets![0];
+        widget.Set("editProfile", "ps");
+        widget.Set("folders", Array.Empty<object>());
+        Assert.Null(store.Save(JsonSerializer.Serialize(cfg, ConfigStore.WriteOpts), store.Version));
+        var created = console.AddFolder(null, "p/c", "Tools");
+        Assert.Equal(200, created.Status);
+        var id = Json(created.Body).GetProperty("id").GetString()!;
+        Assert.Equal(403, console.Bindings(null, "q/c", id).Status);
+        Assert.Equal(200, console.EditBinding(null, "p/c", 0, "Tent", "", store.Version, folder: id).Status);
+        Assert.Equal(404, (await console.Act(null, "p/c", id, "k0", 1, default)).Status);
+        Assert.Equal(200, console.EditBinding(null, "p/c", 0, "Tent", "shift+8", store.Version, folder: id).Status);
+        Assert.Equal(200, (await console.Act(null, "p/c", id, "k0", 1, default)).Status);
+        Assert.Equal(["shift+8"], _sent);
+    }
+
+    [Fact]
+    public async Task AnOptedInKeypadWorksInOtherAppsWithoutRedirectingOtherButtons()
+    {
+        var console = Make();
+        var store = new ConfigStore(_path);
+        var cfg = store.Get();
+        var widget = cfg.Pages[0].Widgets![0];
+        widget.Set("editProfile", "ps");
+        widget.Set("folders", new[] { new { id = "ps", layout = "numpad", allApps = true } });
+        cfg.Console.Profiles[0].Keys.Add(new() { Label = "7", Keys = "numpad7" });
+        Assert.Null(store.Save(JsonSerializer.Serialize(cfg, ConfigStore.WriteOpts), store.Version));
+        _focused = new("notepad", false, 123);
+        console.ForegroundWindow = () => 123;
+        var status = Json(console.State(null, "p/c", "ps").Body);
+        Assert.True(status.GetProperty("focused").GetBoolean());
+        Assert.False(status.GetProperty("profile").GetProperty("available")[0].GetBoolean());
+        Assert.Equal(200, (await console.Act(null, "p/c", "ps", "k2", 1, default)).Status);
+        Assert.Equal(409, (await console.Act(null, "p/c", "ps", "k0", 1, default)).Status);
+        console.ForegroundWindow = () => 456;
+        Assert.Equal(409, (await console.Act(null, "p/c", "ps", "k2", 1, default)).Status);
+        Assert.Equal(["numpad7"], _sent);
+    }
+
+    [Fact]
     public void TheStateNamesTheProfileButNeverTheApp()
     {
         var (status, body) = Make().State(null, "p/c");
@@ -275,7 +339,9 @@ public sealed class AppConsoleTests : IDisposable
         // too long is refused, never cut short into another valid key or app name
         Assert.Contains("longer than", store.Save($$"""{ "console": { "profiles": [{ "label": "X", "apps": "x", "keys": [{ "keys": "{{string.Join(", ", Enumerable.Repeat("ctrl+shift+f12", 20))}}" }] }] } }"""));
         Assert.Contains("longer than", store.Save($$"""{ "console": { "profiles": [{ "label": "X", "apps": "{{new string('a', 301)}}", "keys": [{ "keys": "f5" }] }] } }"""));
-        Assert.Contains("more than 12 keys", store.Save($$"""{ "console": { "profiles": [{ "label": "X", "apps": "x", "keys": [{{string.Join(",", Enumerable.Repeat("""{ "keys": "f5" }""", 13))}}] }] } }"""));
+        const string key = """{ "keys": "f5" }""";
+        Assert.Contains($"more than {ConsoleProfile.MaxKeys} keys",
+            store.Save($$"""{ "console": { "profiles": [{ "label": "X", "apps": "x", "keys": [{{string.Join(",", Enumerable.Repeat(key, ConsoleProfile.MaxKeys + 1))}}] }] } }"""));
         Assert.Contains("more than 20 key presses", store.Save($$"""{ "console": { "profiles": [{ "label": "X", "apps": "x", "dialLeft": "{{string.Join(",", Enumerable.Repeat("a", 21))}}" }] } }"""));
         Assert.Contains("more than 30 apps", store.Save($$"""{ "console": { "profiles": [{{string.Join(",", Enumerable.Range(0, 31).Select(i => $$"""{ "label": "A{{i}}", "apps": "a{{i}}" }"""))}}] } }"""));
         Assert.Null(store.Save("""{ "console": { "profiles": [{ "label": "Edit Pro", "apps": "edit", "keys": [{ "keys": "f5" }], "dialLeft": " " }, { "label": "Edit Pro", "apps": "e2" }] } }"""));

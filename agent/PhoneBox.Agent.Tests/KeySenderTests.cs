@@ -55,12 +55,12 @@ public class KeySenderTests
     [InlineData("ctrl+alt+numpad*", "numpadmultiply")]
     [InlineData("ctrl+alt+NumpadDivide", "numpaddivide")]
     [InlineData("ctrl+alt+NumpadDecimal", "numpaddecimal")]
+    [InlineData("ctrl+alt+Num Lock", "numlock")]
     public void NumpadKeysHaveTheirOwnNames(string spec, string key) => Assert.Equal([["ctrl", "alt", key]], KeySender.Parse(spec));
 
     [Theory]
     [InlineData("numpad10")]
     [InlineData("numpad")]
-    [InlineData("numlock")]
     [InlineData("kp_banana")]
     public void UnknownNumpadNamesAreRejected(string spec) => Assert.Throws<ArgumentException>(() => KeySender.Parse(spec));
 
@@ -73,6 +73,7 @@ public class KeySenderTests
     [InlineData("numpaddecimal", 0x6E, false)]
     [InlineData("numpaddivide", 0x6F, true)]
     [InlineData("numpadenter", 0x0D, true)]  // VK_RETURN, told apart from the main Enter only by the extended flag
+    [InlineData("numlock", 0x90, true)]
     [InlineData("enter", 0x0D, false)]
     [InlineData("3", 0x33, false)]           // the number row stays the number row
     public void WindowsKeypadCodes(string key, int vk, bool extended)

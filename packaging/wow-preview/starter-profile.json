@@ -1,0 +1,188 @@
+{
+  "night": {
+    "enabled": false
+  },
+  "updates": {
+    "auto": false
+  },
+  "display": {
+    "homePage": "wow-forever",
+    "openOnConnect": false,
+    "homeScreen": false,
+    "pin": false
+  },
+  "charge": {
+    "min": 35,
+    "reminders": false,
+    "max": 95,
+    "enabled": false
+  },
+  "lan": {
+    "enabled": false
+  },
+  "console": {
+    "profiles": [
+      {
+        "label": "Action Bar",
+        "id": "wow-forever",
+        "keys": [
+          {
+            "label": "Action 1",
+            "keys": "1"
+          },
+          {
+            "label": "Action 2",
+            "keys": "2"
+          },
+          {
+            "label": "Action 3",
+            "keys": "3"
+          },
+          {
+            "label": "Action 4",
+            "keys": "4"
+          },
+          {
+            "label": "Action 5",
+            "keys": "5"
+          },
+          {
+            "label": "Action 6",
+            "keys": "6"
+          },
+          {
+            "label": "Action 7",
+            "keys": "7"
+          },
+          {
+            "label": "Action 8",
+            "keys": "8"
+          },
+          {
+            "label": "Action 9",
+            "keys": "9"
+          },
+          {
+            "label": "Action 0",
+            "keys": "0"
+          },
+          {
+            "label": "Action -",
+            "keys": "minus"
+          },
+          {
+            "label": "Action =",
+            "keys": "equals"
+          }
+        ],
+        "apps": "Wow"
+      },
+      {
+        "label": "WoW Actions",
+        "id": "wow-spellbook",
+        "keys": [],
+        "apps": "Wow"
+      },
+      {
+        "label": "Adventure",
+        "id": "wow-adventure",
+        "keys": [
+          {
+            "wowSpell": "ADVENTURE:HEARTHSTONE",
+            "label": "Hearthstone",
+            "icon": "🏠",
+            "keys": ""
+          },
+          {
+            "wowSpell": "ADVENTURE:FISHING",
+            "label": "Fishing",
+            "icon": "🎣",
+            "keys": ""
+          }
+        ],
+        "apps": "Wow"
+      },
+      {
+        "label": "Food & Drink",
+        "id": "wow-adventure-food",
+        "keys": [],
+        "apps": "Wow"
+      },
+      {
+        "label": "Potions",
+        "id": "wow-adventure-potions",
+        "keys": [],
+        "apps": "Wow"
+      },
+      {
+        "label": "Pets",
+        "id": "wow-adventure-pets",
+        "keys": [],
+        "apps": "Wow"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "widgets": [
+        {
+          "y": 0,
+          "h": 6,
+          "options": {
+            "folders": [
+              {
+                "icon": "⌨",
+                "label": "Action Bar",
+                "id": "wow-forever"
+              },
+              {
+                "icon": "📖",
+                "label": "WoW Actions",
+                "id": "wow-spellbook",
+                "role": "wow-actions"
+              },
+              {
+                "icon": "🧭",
+                "label": "Adventure",
+                "id": "wow-adventure"
+              },
+              {
+                "category": "food",
+                "label": "Food & Drink",
+                "role": "wow-inventory",
+                "id": "wow-adventure-food",
+                "icon": "🍞",
+                "parent": "wow-adventure"
+              },
+              {
+                "category": "potion",
+                "label": "Potions",
+                "role": "wow-inventory",
+                "id": "wow-adventure-potions",
+                "icon": "🧪",
+                "parent": "wow-adventure"
+              },
+              {
+                "category": "pet",
+                "label": "Pets",
+                "role": "wow-inventory",
+                "id": "wow-adventure-pets",
+                "icon": "🐾",
+                "parent": "wow-adventure"
+              }
+            ],
+            "editProfile": "wow-forever",
+            "control": true
+          },
+          "type": "app-console",
+          "id": "wow-console",
+          "x": 0,
+          "w": 12
+        }
+      ],
+      "id": "wow-forever",
+      "title": "WoW Forever",
+      "enabled": true
+    }
+  ]
+}

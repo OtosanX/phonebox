@@ -339,11 +339,11 @@ public sealed class AdbReverseTests : IDisposable
     }
 
     [Fact]
-    public void OpenOnConnectIsOnByDefault()
+    public void OpenOnConnectIsOffByDefault()
     {
         var path = Path.Combine(_dir, "config.json");
         File.WriteAllText(path, "{}");
-        Assert.True(new ConfigStore(path).Get().Display.OpenOnConnect);
+        Assert.False(new ConfigStore(path).Get().Display.OpenOnConnect);
     }
 
     private const string UsbKey = "k3Y_0123456789abcdefghijklmnopqrstuvwxyzABCD";

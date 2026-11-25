@@ -1,10 +1,11 @@
 package net.oxog.phonebox.deskpanel
 
+import android.os.SystemClock
 import java.io.Closeable
 
 /**
  * Keeps one live connection to the agent's /api/stream (server-sent events) and hands every event to [deliver].
- * Reconnects after errors. On Wi-Fi it reconnects every minute so a freshly plugged-in USB cable is preferred again.
+ * Reconnects after errors, or switches from Wi-Fi when a USB probe confirms the tunnel is ready.
  * "open" / "close" pseudo-events tell the panel when to stop or resume its polling fallback.
  */
 class AgentStream(private val link: AgentLink, private val deliver: (event: String, data: String) -> Unit) {
@@ -73,7 +74,7 @@ class AgentStream(private val link: AgentLink, private val deliver: (event: Stri
                 reply.body.bufferedReader(Charsets.UTF_8).use { r ->
                     if (!alive()) return@use
                     dispatch(gen, "open", "{\"route\":\"${route.name.lowercase()}\"}")
-                    val since = System.currentTimeMillis()
+                    var nextUsbCheck = SystemClock.elapsedRealtime() + 60_000
                     var event = "message"
                     val data = StringBuilder()
                     while (alive()) {
@@ -84,7 +85,10 @@ class AgentStream(private val link: AgentLink, private val deliver: (event: Stri
                                 if (data.isNotEmpty()) dispatch(gen, event, data.toString())
                                 event = "message"
                                 data.setLength(0)
-                                if (route == AgentLink.Route.WIFI && System.currentTimeMillis() - since > 60_000) break
+                                if (route == AgentLink.Route.WIFI && SystemClock.elapsedRealtime() >= nextUsbCheck) {
+                                    nextUsbCheck = SystemClock.elapsedRealtime() + 60_000
+                                    if (link.usbStreamReady()) break
+                                }
                             }
                             line.startsWith("event:") -> event = line.substring(6).trim()
                             line.startsWith("data:") -> data.append(line.substring(5).trimStart())

@@ -5,6 +5,10 @@ namespace PhoneBox.Agent;
 public sealed record MediaSnapshot(string App, string Title, string Artist, string Album, bool Playing,
     long PosMs, long DurMs, int ArtId, bool CanSeek)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? SourceId { get; init; }
+    public MediaAppVolume? AppVolume { get; init; }
+
     /// <summary>When the position was read (<see cref="System.Diagnostics.Stopwatch.GetTimestamp"/>); 0 = not dated.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public long SampledAt { get; init; }
@@ -19,3 +23,4 @@ public sealed record MediaSnapshot(string App, string Title, string Artist, stri
 public sealed record AlbumArt(byte[] Bytes, string Mime);
 
 public sealed record AudioSnapshot(int Volume, bool Muted, bool CanControl = true);
+public sealed record MediaAppVolume(string Target, int Volume, bool Muted);

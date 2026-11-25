@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>PhoneBox</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" id="legacyPanelStyles" href="legacy-panel.css">
 <link rel="stylesheet" href="controls.css">
 <link rel="stylesheet" href="appearance.css">
 </head>
@@ -17,7 +18,7 @@
 <div id="pagePauseOverlay" aria-hidden="true"></div>
 
 <div id="overview" hidden>
-  <div class="ov-head"><span data-i18n="panel.allPages">All pages</span> <small data-i18n="panel.overviewHint">tap one to jump · volume keys flip pages · long-press a page to come back here</small><span id="ovPcs"></span><button class="ov-pc" id="ovRules" hidden></button></div>
+  <div class="ov-head"><span data-i18n="panel.allPages">All pages</span> <small data-i18n="panel.overviewHint">tap one to jump · volume keys flip pages · long-press a page to come back here</small><span id="ovPcs"></span><button class="ov-pc" id="ovRules" hidden></button><button type="button" class="ov-pc" id="ovCloseApp" data-i18n="panel.closeApp" hidden>Close app</button></div>
   <div id="ovGrid"></div>
 </div>
 
@@ -97,6 +98,8 @@
       return;
     }
     if (window.CSS && typeof CSS.supports === 'function' && CSS.supports('font-size', '1cqw')) return;
+    var legacyStyles = document.getElementById('legacyPanelStyles');
+    if (legacyStyles && legacyStyles.sheet && typeof ResizeObserver === 'function') return;
     try { if (sessionStorage.getItem('pb-wv-dismissed') === '1') return; } catch (_) {}
     el.hidden = false; el.style.display = 'flex';
     if (btn) btn.onclick = function (e) {
@@ -174,6 +177,7 @@
 <script src="locale-ar.js"></script>
 <script src="locale-zh-Hant.js"></script>
 <script src="i18n.js"></script>
+<script src="portrait-layout.js"></script>
 <script type="module" src="main.js"></script>
 </body>
 </html>

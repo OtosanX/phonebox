@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.content.res.Configuration
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -32,6 +33,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
 import android.webkit.JavascriptInterface
@@ -56,12 +58,14 @@ import java.util.Locale
  * never makes local-network requests (no CORS, mixed-content or local-network-access issues).
  */
 class MainActivity : Activity(), SensorEventListener {
+    private val compactDeck = Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1
 
     private lateinit var web: WebView
     /** False when Android could not start its WebView (#385): the activity then only shows why. */
     private val hasWeb get() = ::web.isInitialized
     private val panelLanguageTag = Regex("auto|[a-z]{2}(-[A-Za-z]{2,4})?")
     private val panelPreferences by lazy { getSharedPreferences("panel-ui", MODE_PRIVATE) }
+    private val batteryReminder by lazy { BatteryReminder(this, ::pairingContext, ::hideSystemUi) }
 
     private fun pairingContext(): Context {
         val tag = panelPreferences.getString("language", null) ?: return this
@@ -80,6 +84,16 @@ class MainActivity : Activity(), SensorEventListener {
     private var lastLux = -1f
     private var lastLuxAt = 0L
     private var near: Boolean? = null
+    private val visibleFrame = Rect()
+    private var keyboardWasVisible = false
+    private val restoreAfterKeyboard = android.view.ViewTreeObserver.OnGlobalLayoutListener {
+        val decor = window.decorView
+        decor.getWindowVisibleDisplayFrame(visibleFrame)
+        val keyboardVisible = decor.rootView.height - visibleFrame.bottom >
+            100 * resources.displayMetrics.density
+        if (keyboardWasVisible && !keyboardVisible && hasWindowFocus()) hideSystemUi()
+        keyboardWasVisible = keyboardVisible
+    }
 
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
@@ -113,6 +127,8 @@ class MainActivity : Activity(), SensorEventListener {
         }
         web.setBackgroundColor(0xFF000000.toInt())
         setContentView(web)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+            window.decorView.viewTreeObserver.addOnGlobalLayoutListener(restoreAfterKeyboard)
 
         with(web.settings) {
             javaScriptEnabled = true
@@ -152,7 +168,8 @@ class MainActivity : Activity(), SensorEventListener {
         // Lets you debug the panel from the computer via chrome://inspect.
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
-        web.loadUrl("https://$ASSET_HOST/assets/www/index.html")
+        val panel = if (compactDeck) "compact.html" else "index.html"
+        web.loadUrl("https://$ASSET_HOST/assets/www/$panel")
         hideSystemUi()
         handlePairingLink(intent)
     }
@@ -192,7 +209,7 @@ class MainActivity : Activity(), SensorEventListener {
                 if (isFinishing || isDestroyed) return@runOnUiThread // the pairing is stored; there is no window to show it in
                 if (problem == null) {
                     Toast.makeText(context, context.getString(R.string.pair_done, pairing.pc), Toast.LENGTH_LONG).show()
-                    stream.stop(); if (resumed) stream.start(); if (hasWeb) web.reload()
+                    stream.stop(); if (resumed && !compactDeck) stream.start(); if (hasWeb) web.reload()
                 } else {
                     AlertDialog.Builder(this).setTitle(context.getString(R.string.pair_failed_title)).setMessage(problem.message(context))
                         .setPositiveButton(context.getString(R.string.ok), null).setOnDismissListener { hideSystemUi() }.show().pairingButtons(context)
@@ -314,19 +331,35 @@ class MainActivity : Activity(), SensorEventListener {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Kiosk behaviour: Back does not leave the app, it returns to the first page.
         if (!hasWeb) return super.onBackPressed() // nothing to return to without the panel
-        web.evaluateJavascript("window.onAndroidBack && window.onAndroidBack()", null)
+        val kiosk = isKiosk()
+        web.evaluateJavascript("window.onAndroidBack && window.onAndroidBack($kiosk)") { handled ->
+            if (handled != "true" && resumed && !isFinishing && !isKiosk()) finish()
+        }
     }
+
+    private fun panelPinned(): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            manager.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+        else @Suppress("DEPRECATION") manager.isInLockTaskMode
+    }
+
+    private fun homeAlias() = ComponentName(this, "$packageName.HomeAlias")
+
+    private fun isKiosk(): Boolean = panelPinned() ||
+        packageManager.getComponentEnabledSetting(homeAlias()) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
 
     override fun onResume() {
         super.onResume()
         if (!hasWeb) return
         resumed = true
         web.onResume()
+        batteryReminder.start()
         web.evaluateJavascript("window.onAppPause && window.onAppPause(false)", null) // the panel catches up at once
-        stream.start()
         hideSystemUi()
+        if (compactDeck) return
+        stream.start()
         sensors?.getDefaultSensor(Sensor.TYPE_LIGHT)?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
         sensors?.getDefaultSensor(Sensor.TYPE_PROXIMITY)?.let { sensors?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
     }
@@ -339,6 +372,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     override fun onPause() {
         resumed = false
+        if (hasWeb) batteryReminder.stop()
         dictation.cancel(0) // the microphone is never left open behind another app or a dark screen
         sensors?.unregisterListener(this)
         stream.stop()
@@ -359,6 +393,8 @@ class MainActivity : Activity(), SensorEventListener {
         link.trackpadSocket.close()
         link.close()
         if (hasWeb) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+                window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(restoreAfterKeyboard)
             (web.parent as? ViewGroup)?.removeView(web) // a WebView must be detached before destroy()
             web.destroy()
         }
@@ -421,6 +457,27 @@ class MainActivity : Activity(), SensorEventListener {
 
     inner class Bridge {
         private fun ok(key: String) = key == bridgeKey
+
+        @JavascriptInterface
+        fun setBatteryReminders(key: String, enabled: Boolean, low: Int, high: Int) {
+            if (!ok(key)) return
+            runOnUiThread { if (!destroyed) batteryReminder.configure(enabled, low, high) }
+        }
+
+        @JavascriptInterface
+        fun closePanelEditor(key: String) {
+            if (!ok(key)) return
+            runOnUiThread {
+                if (!destroyed && resumed && hasWeb) {
+                    val keyboard = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    keyboard.hideSoftInputFromWindow(web.windowToken, 0)
+                    hideSystemUi()
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) web.postDelayed({
+                        if (!destroyed && resumed && hasWindowFocus()) hideSystemUi()
+                    }, 350)
+                }
+            }
+        }
 
         private val validTrackpadTypes = setOf("move", "click", "rightClick", "mousedown", "mouseup", "scroll", "hscroll") +
             // multi-finger gestures: three or four fingers swiping, four or five spreading or pinching (the agent follows the Mac's settings)
@@ -542,11 +599,15 @@ class MainActivity : Activity(), SensorEventListener {
         fun setPinned(key: String, on: Boolean) {
             if (!ok(key)) return
             runOnUiThread {
-                val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                val pinned = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
-                    else @Suppress("DEPRECATION") am.isInLockTaskMode
+                val pinned = panelPinned()
                 try { if (on && !pinned) startLockTask() else if (!on && pinned) stopLockTask() } catch (_: Exception) {}
             }
+        }
+
+        @JavascriptInterface
+        fun closeApp(key: String) {
+            if (!ok(key)) return
+            runOnUiThread { if (resumed && !isFinishing && !isKiosk()) finish() }
         }
 
         /** The computers this phone is paired with (for switching over Wi-Fi). */
@@ -559,7 +620,7 @@ class MainActivity : Activity(), SensorEventListener {
             if (!ok(key) || !link.select(id)) return
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                stream.stop(); if (resumed) stream.start(); if (hasWeb) web.reload()
+                stream.stop(); if (resumed && !compactDeck) stream.start(); if (hasWeb) web.reload()
             }
         }
 
@@ -595,7 +656,7 @@ class MainActivity : Activity(), SensorEventListener {
         @JavascriptInterface
         fun setHomeScreen(key: String, on: Boolean) {
             if (!ok(key)) return
-            val alias = ComponentName(this@MainActivity, "$packageName.HomeAlias")
+            val alias = homeAlias()
             val want = if (on) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
             if (packageManager.getComponentEnabledSetting(alias) != want)
                 packageManager.setComponentEnabledSetting(alias, want, PackageManager.DONT_KILL_APP)
@@ -628,7 +689,7 @@ class MainActivity : Activity(), SensorEventListener {
         private val NO_STORE = mapOf("Cache-Control" to "no-store")
         private const val PANEL_HEADER = "X-PhoneBox-Panel"
         private val READ_ONLY_IMAGES = setOf("/agent/api/art", "/agent/api/procs/icon", "/agent/api/controls/radio-logo", "/agent/api/apps/icon", "/agent/api/discord/img", "/agent/api/shortcuts/icon",
-            "/agent/api/steam/cover")
+            "/agent/api/steam/cover", "/agent/api/console/wow-icon")
         private fun FORBIDDEN() = WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", NO_STORE, java.io.ByteArrayInputStream(ByteArray(0)))
     }
 }

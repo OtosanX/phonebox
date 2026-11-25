@@ -1,6 +1,7 @@
 import { $, API, D, curPage, pages, PANEL_HEADERS, PREVIEW, LOCALE, Q_STYLE, api, bridge, cfg, cfgVersion, configMark, configReadSince, localWriteStored, loadConfig, color, cssVar, rulesPaused, toggleRulesPause, fillIcon, fmtDur, fmtHM, fmtMem, gotoPageRef, gpuMem, gpusOf, h, en, haptic, icon, openSheet, paceInfo, pad, pairedPcs, quotaProviders, r1, shortDur, shortGpu, store, switchPc, t, tick, toast, transport, emo, labelled, rich, tp, tpv, quotaText } from '../main.js';
 import { W } from '../registry.js';
 import { canKillAnywhere, dialEl, every } from './helpers.js';
+import { streaming } from '../main.js';
 
 // ---------------------------------------------------------------- phone & PC
 // Your own HTML / CSS / JavaScript in a sandboxed iframe (no access to the panel, the agent or the phone). It gets
@@ -273,8 +274,8 @@ W.discord = {
       await load(); busy = null; render(true);
     };
     // Screen share (its own switch in Settings › General › Discord, and control): 🖥️ switches to the share view. The
-    // running apps (names only) are asked for only while that view is open on screen.
-    let shareOpen = false, share = null, shareBusy = null;
+    // Main window titles are asked for only while that view is open on screen.
+    let shareOpen = false, share = null, shareBusy = null, shareNotice = null;
     let shareWaiting = 0;
     const loadShare = async () => {
       shareWaiting++;
@@ -286,6 +287,7 @@ W.discord = {
     const shareAct = async (action, pid) => {
       if (shareBusy) return;
       haptic();
+      shareNotice = null;
       shareBusy = action + (pid || ''); render(true);
       // Longer than the agent waits for a share to start. Never sent again by itself: the same command starts and stops.
       const ctl = new AbortController();
@@ -294,11 +296,14 @@ W.discord = {
       try {
         await Promise.race([deadline, (async () => {
           const r = await fetch(`${API}/discord/share/${action}` + (pid ? '?pid=' + pid : ''), { method: 'POST', cache: 'no-store', headers: PANEL_HEADERS, signal: ctl.signal });
-          if (r.ok) return;
+          if (r.ok) {
+            if (action === 'pick') shareNotice = tp('Check Discord on your PC to choose what to share.');
+            return;
+          }
           const { code } = await r.json().catch(() => ({}));
-          toast(t(SHARE_ERRORS[code] || 'w.discord.failed'), 'err');
+          shareNotice = t(SHARE_ERRORS[code] || 'w.discord.failed');
         })()]);
-      } catch (_) { toast(t('panel.pcNoAnswer'), 'err'); } finally { clearTimeout(timer); shareBusy = null; }
+      } catch (_) { shareNotice = t('panel.pcNoAnswer'); } finally { clearTimeout(timer); shareBusy = null; }
       if (shareOpen && visible()) await loadShare(); // closed or off screen meanwhile: the apps are not asked for
       render(true);
     };
@@ -309,20 +314,28 @@ W.discord = {
       if (!c.ready) return [h('div', 'empty', c.refused ? t('w.discord.shareRefused') : c.error || t('w.discord.shareApprove'))];
       if (c.active === null) return [h('div', 'empty', t('w.discord.shareUnknown'))];
       const out = [];
+      const notice = shareNotice ? h('div', 'dc-hint', shareNotice) : null;
+      if (notice) notice.setAttribute('role', 'status');
       if (c.active) {
         const stop = h('button', 'dc-share stop' + (shareBusy === 'stop' ? ' busy' : ''), emo('⏹️'), ' ', t('w.discord.shareStop'));
         if (!shareBusy) stop.addEventListener('click', () => shareAct('stop')); else stop.disabled = true;
         out.push(h('div', 'dc-sharing', h('span', null, c.name ? t('w.discord.sharing', { name: c.name }) : t('w.discord.sharingNow'))), stop);
+        if (notice) out.push(notice);
         return out;
       }
       if (!c.inCall) out.push(h('div', 'dc-hint', t('w.discord.shareJoin')));
       const pick = h('button', 'dc-share' + (shareBusy === 'pick' ? ' busy' : ''), emo('🖥️'), ' ', t('w.discord.sharePick'));
       if (c.inCall && !shareBusy) pick.addEventListener('click', () => shareAct('pick')); else pick.disabled = true;
       out.push(pick);
+      if (notice) out.push(notice);
       if (c.apps?.length) {
         out.push(h('div', 'dc-hint', t('w.discord.shareHint')));
         out.push(h('div', 'dc-apps', ...c.apps.map((a) => {
-          const b = h('button', 'dc-app' + (shareBusy === 'app' + a.pid ? ' busy' : ''), a.name);
+          const label = a.title || a.name;
+          const b = h('button', 'dc-app' + (shareBusy === 'app' + a.pid ? ' busy' : ''),
+            h('span', 'dc-app-title', label));
+          if (label.toLowerCase() !== a.name.toLowerCase()) b.append(h('span', 'dc-app-name', a.name));
+          b.title = label;
           if (c.inCall && !shareBusy) b.addEventListener('click', () => shareAct('app', a.pid)); else b.disabled = true;
           return b;
         })));
@@ -336,7 +349,7 @@ W.discord = {
     const render = (force = false) => {
       const s0 = data?.snapshot;
       const quiet = s0?.members ? { ...data, snapshot: { ...s0, members: s0.members.map(({ speaking, ...m }) => m) } } : data;
-      const key = JSON.stringify([quiet, busy, [...open], box.clientHeight, editing, saving, o.favGuilds, o.favChannels, shareOpen, shareBusy, shareOpen ? share : null, chatOpen, picking, pickGuild, chatOpen ? chat : null]);
+      const key = JSON.stringify([quiet, busy, [...open], box.clientHeight, editing, saving, o.favGuilds, o.favChannels, shareOpen, shareBusy, shareNotice, shareOpen ? share : null, chatOpen, picking, pickGuild, chatOpen ? chat : null]);
       if (!force && key === lastKey) { ring(); return; }
       lastKey = key;
       rings.clear();
@@ -361,7 +374,7 @@ W.discord = {
         b.addEventListener('click', () => {
           haptic(); shareOpen = !shareOpen;
           // one view at a time: a chat hidden under the share view would still be read and marked as seen
-          if (shareOpen) { chatOpen = false; picking = false; pickGuild = null; share = null; loadShare().then(() => render(true)); }
+          if (shareOpen) { chatOpen = false; picking = false; pickGuild = null; share = shareNotice = null; loadShare().then(() => render(true)); }
           render(true);
         });
         return b;
@@ -512,6 +525,126 @@ W.discord = {
     };
     // 'fast' (every 250 ms) drives the asking; 'tick' (every second) also redraws when the widget's size changes
     return { update: (kind) => { poll(); pollShare(); pollChat(); if (kind !== 'fast') render(); } };
+  },
+};
+
+W['discord-call'] = {
+  needs: ['discord-call', 'fast', 'tick'],
+  create(box, { o, page }) {
+    const title = h('div', 'w-title', o.title || tp('Discord call'));
+    const channel = h('strong', 'call-channel');
+    const detail = h('div', 'call-detail');
+    const talking = h('div', 'call-speaking');
+    const roster = h('div', 'call-roster');
+    const actions = h('div', 'call-actions');
+    box.append(title, channel, detail, talking, roster, actions);
+    const cards = new Map();
+    let call, fallback, requestPending = false, actionPending = false, destroyed = false, next = 0;
+    const visible = () => box.isConnected && !document.hidden && pages[curPage] === page && !box.closest('.stack-item:not(.active)');
+    const available = () => call?.connected && !!call.channelId;
+    async function refresh() {
+      if (requestPending || destroyed) return;
+      requestPending = true;
+      try { fallback = await api('/discord/call'); } catch (_) { fallback = null; }
+      finally { requestPending = false; }
+      if (!destroyed && !streaming()) render(fallback);
+    }
+    async function act(action) {
+      if (actionPending || !available() || !call.canControl) return;
+      if (action === 'leave' && !window.confirm(tp('Leave this Discord call?'))) return;
+      actionPending = true;
+      buttons();
+      try { await api('/discord/' + action, 'POST'); }
+      catch (error) { toast(error?.message || t('w.discord.failed'), 'err'); }
+      finally { actionPending = false; if (!destroyed) { buttons(); if (!streaming()) refresh(); } }
+    }
+    let lastButtons = '';
+    function buttons() {
+      const shown = o.control === true && available() && call.canControl;
+      const key = JSON.stringify([shown, call?.muted, call?.deafened, call?.inputMode, actionPending]);
+      if (key === lastButtons) return;
+      lastButtons = key;
+      actions.hidden = !shown;
+      if (!shown) return;
+      const control = (label, action, pressed) => {
+        const button = h('button', 'call-action', tp(label));
+        button.disabled = actionPending;
+        if (pressed != null) button.setAttribute('aria-pressed', String(pressed));
+        button.addEventListener('click', () => act(action));
+        return button;
+      };
+      const ptt = call.inputMode === 'PUSH_TO_TALK';
+      actions.replaceChildren(control(call.muted ? 'Unmute mic' : 'Mute mic', 'mute', call.muted),
+        control(call.deafened ? 'Undeafen' : 'Deafen', 'deafen', call.deafened),
+        call.inputMode ? control(ptt ? 'Use voice activity' : 'Use push to talk', 'inputmode', ptt) : '',
+        control('Leave call', 'leave'));
+    }
+    function updateDetail() {
+      if (!available()) { detail.textContent = ''; return; }
+      const count = call.members?.length || 0;
+      const elapsed = o.duration !== false && call.observedAt ? fmtDur(Math.max(0, Date.now() - call.observedAt)) : '';
+      const warning = call.inputMode === 'PUSH_TO_TALK' && !call.pttKey ? t('w.discord.pttNoKey') : '';
+      detail.textContent = [tpv('{count} in call', { count }), elapsed, warning].filter(Boolean).join(' · ');
+    }
+    function render(value) {
+      call = value;
+      channel.textContent = !call ? t('panel.connecting') : !call.enabled ? t('w.discord.turnOn') :
+        !call.connected ? call.error || t('panel.connecting') : call.channelName || t('w.discord.notInChannel');
+      updateDetail();
+      buttons();
+      const members = available() && Array.isArray(call.members) ? call.members : [];
+      const speakers = members.filter(member => member.speaking && !member.muted && !member.deafened);
+      const speaking = new Set(speakers.map(member => member.id));
+      talking.hidden = !available();
+      talking.classList.toggle('active', speakers.length > 0);
+      talking.textContent = speakers.length ? tpv('Speaking: {names}', { names: speakers.map(member => member.name).join(', ') }) :
+        call?.speakingAvailable ? tp('No one speaking') : tp('Speaking status unavailable');
+      const memberIds = new Set(members.map(member => member.id));
+      for (const [id, card] of cards) {
+        if (!memberIds.has(id)) { card.element.remove(); cards.delete(id); }
+      }
+      if (!members.length) roster.replaceChildren();
+      for (const member of members) {
+        let card = cards.get(member.id);
+        const signature = JSON.stringify([member.name, member.avatar]);
+        if (!card || card.signature !== signature) {
+          const avatar = h('span', 'call-avatar', (member.name || '?').trim().charAt(0).toUpperCase() || '?');
+          if (o.avatars !== false && member.avatar) {
+            const image = new Image();
+            image.alt = '';
+            image.onload = () => avatar.replaceChildren(image);
+            image.src = API + '/discord/img?kind=user&id=' + encodeURIComponent(member.id) + '&hash=' + encodeURIComponent(member.avatar);
+          }
+          const status = h('span', 'call-member-status');
+          const element = h('div', 'call-member', o.avatars !== false ? avatar : null,
+            h('div', 'call-person', h('strong', 'call-name', member.name), status));
+          if (card) card.element.replaceWith(element); else roster.append(element);
+          card = { element, status, signature };
+          cards.set(member.id, card);
+        }
+        const active = speaking.has(member.id);
+        card.element.hidden = o.speakersOnly === true && call.speakingAvailable && !active;
+        card.element.classList.toggle('speaking', active);
+        card.status.hidden = !active && o.status === false;
+        card.status.textContent = active ? tp('Speaking') : member.deafened ? tp('Deafened') : member.muted ? tp('Muted') : tp('In call');
+      }
+    }
+    render(null);
+    return {
+      update(kind) {
+        if (!visible()) { next = 0; return; }
+        if (kind === 'discord-call') render(D.discordCall);
+        if (kind === 'tick') {
+          if (streaming() && D.discordCall !== call) render(D.discordCall);
+          updateDetail();
+        }
+        if (!streaming() && !requestPending && Date.now() >= next) {
+          next = Date.now() + (fallback?.channelId ? 650 : 2000);
+          refresh();
+        }
+      },
+      destroy() { destroyed = true; },
+    };
   },
 };
 

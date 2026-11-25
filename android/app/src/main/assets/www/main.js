@@ -55,7 +55,7 @@ export const $ = (id) => document.getElementById(id);
 // The native bridge (window.Android) is in every frame, sandboxed widgets included, so each call carries a key that only
 // the panel's own frames receive (MainActivity.bridgeKey). This wrapper adds it.
 const BRIDGE = ['battery', 'buzz', 'haptic', 'is24Hour', 'pcs', 'selectPc', 'forgetPc', 'setBrightness', 'setHomeScreen', 'setOrientation',
-  'setPinned', 'setVolumeKeys', 'setLanguage', 'transport', 'sensors', 'version', 'canListen', 'listen', 'stopListening', 'cancelListening', 'trackpad', 'canWake', 'wakePc'];
+  'setPinned', 'setVolumeKeys', 'setLanguage', 'transport', 'sensors', 'version', 'canListen', 'listen', 'stopListening', 'cancelListening', 'trackpad', 'canWake', 'wakePc', 'closePanelEditor', 'closeApp', 'setBatteryReminders'];
 export const bridge = typeof Android === 'undefined' ? null : Object.fromEntries(BRIDGE.filter((m) => typeof Android[m] === 'function')
   .map((m) => [m, (...args) => Android[m](window.__phoneboxKey || '', ...args)]));
 // Live preview inside the agent's layout editor: the layout comes from the editor (unsaved), not from the agent.
@@ -760,6 +760,8 @@ export function keyButton(s, { cover = false, label = true } = {}) {
   const name = String(s.label || '').trim();
   if (!label || !name) b.setAttribute('aria-label', name || s.id);
   b.style.setProperty('--k', s.color || '#6b7280');
+  const rgb = /^#([0-9a-f]{6})$/i.exec(s.color || '');
+  if (rgb) b.style.setProperty('--k-rgb', rgb[1].match(/../g).map(channel => parseInt(channel, 16)).join(', '));
   b.dataset.id = s.id;
   b._cover = cover;
   if (s.hold) holdToRun(b, s.id);
@@ -767,7 +769,7 @@ export function keyButton(s, { cover = false, label = true } = {}) {
   // Only an upload fills the key: a program's own icon is 32 px on Windows, 64 px on macOS, and on Linux whatever logo
   // the icon theme has, none of them a picture the user chose for the button. The agent says which is which, since the
   // picture's size cannot tell (an SVG reports a default size, often 24 px from an icon set).
-  if (s.iconRev != null) applyShortcutIcon(b, icon, s.id, cover && s.iconUpload === true);
+  if (s.iconRev != null && (s.iconUpload || !s.icon)) applyShortcutIcon(b, icon, s.id, s.iconRev, cover && s.iconUpload === true);
   return b;
 }
 
@@ -802,13 +804,13 @@ export function setKeyFace(b, s, cover = false) {
   b.querySelector('.k-label').textContent = s.label;
   // a key that had no visible name is named by its id; the name follows the face
   if (b.hasAttribute('aria-label')) b.setAttribute('aria-label', String(s.label || '').trim() || s.id);
-  if (s.iconRev != null) applyShortcutIcon(b, icon, s.id, cover && s.iconUpload === true);
+  if (s.iconRev != null && (s.iconUpload || !s.icon)) applyShortcutIcon(b, icon, s.id, s.iconRev, cover && s.iconUpload === true);
 }
 
-function applyShortcutIcon(b, icon, id, cover) {
+function applyShortcutIcon(b, icon, id, revision, cover) {
   // a picture that arrives after the key changed face (a cycle key) is not the face any more: it is dropped
   const current = () => (b.dataset.face || b.dataset.id) === id;
-  const url = `${API}/shortcuts/icon?id=${encodeURIComponent(id)}`;
+  const url = `${API}/shortcuts/icon?id=${encodeURIComponent(id)}&v=${encodeURIComponent(revision)}`;
   const img = new Image();
   if (cover) {
     // the upload only: if it was removed since the config was read, the key falls back to the centred icon (the
@@ -820,7 +822,7 @@ function applyShortcutIcon(b, icon, id, cover) {
       b.prepend(img, h('span', 'k-shade'));
       b.classList.add('k-cover');
     };
-    img.onerror = () => applyShortcutIcon(b, icon, id, false);
+    img.onerror = () => applyShortcutIcon(b, icon, id, revision, false);
     img.src = url + '&upload=true'; // "true", not "1": the agent binds it as a bool and answers 400 to "1"
     return;
   }
@@ -895,7 +897,7 @@ export const setAmbient = (rgb) => document.documentElement.style.setProperty('-
 /** The empty media card. A function, not a constant: its texts are translated when the widget is built. */
 export const mediaHtml = () => `
   <div class="m-top">
-    <div class="art-wrap"><img class="art" alt=""><div class="art-ph">♪</div></div>
+    <div class="m-art-slot"><div class="art-wrap"><img class="art" alt=""><div class="art-ph">♪</div></div></div>
     <div class="m-text"><div class="m-app"><span class="m-source-icon" aria-hidden="true"></span><span class="m-app-name">Media</span></div><div class="m-title">${t('w.nothingPlaying')}</div><div class="m-artist">${t('w.startOnPc')}</div></div>
   </div>
   <div class="m-progress"><div class="bar" role="slider" tabindex="0" aria-label="Position" aria-valuemin="0"><div class="fill"></div><div class="scrub-tip" aria-hidden="true">0:00</div></div><div class="times"><span class="m-pos">0:00</span><span class="m-dur">0:00</span></div></div>
@@ -1401,7 +1403,7 @@ export function handleEvent(e) {
 }
 
 export const WIDGET_ICONS = { camera: '📹', dictate: '🎙️', spectrum: '📶', 'app-console': '🎛️', discord: '💬', steam: '👥', 'steam-activity': '🔔', rules: '⚡', chargecare: '🔋', nextup: '⏭️', moon: '🌙', wordclock: '🔤', clock: '🕒', weather: '⛅', forecast: '🌦️', media: '🎵', lyrics: '🎤', stat: '📈', gauge: '⏲️', chart: '📊', meters: '💾', gpu: '🎮', quotas: '✳️', sessions: '🤖',
-  github: '🐙', processes: '⚙️', shortcuts: '🎛️', button: '🔘', worldclock: '🌍', calendar: '📅', pomodoro: '🍅', countdown: '⏳', note: '📝', command: '💻',
+  github: '🐙', processes: '⚙️', shortcuts: '🎛️', button: '🔘', worldclock: '🌍', calendar: '📅', pomodoro: '🍅', countdown: '⏳', 'next-holiday': '📅', note: '📝', command: '💻',
   push: '📡', inbox: '📬', label: '🔤', analog: '🕰️', progress: '📆', stopwatch: '⏱️', timer: '⏲️', counter: '🔢', breathe: '🫁', quote: '💬',
   checklist: '✅', battery: '🔋', topprocs: '🔥', quotaring: '🎯', volume: '🔊', sun: '🌅', air: '🍃', hackernews: '📰', feeds: '🗞️', photos: '🖼️', exchange: '💱', crypto: '🪙', image: '🖼️', pcswitch: '🖥️', pagebuttons: '🧭', 'plex-queue': '🎛️', 'plex-playlists': '🎶' };
 
@@ -1415,18 +1417,16 @@ let lastHour12 = null;
 
 export const isPortrait = () => window.innerHeight > window.innerWidth * 1.05;
 
-// Portrait: the same widgets packed into a 6-column grid in reading order. Their sizes in cells stay the same
-// (portrait cells are about as square as landscape ones); wider widgets shrink to 6 columns and the rows grow to fit.
-export function portraitLayout(widgets) {
-  const cols = 6, occ = [], pos = new Map();
-  const free = (x, y, w, h) => { for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) if (occ[r]?.[c]) return false; return true; };
-  const take = (x, y, w, h) => { for (let r = y; r < y + h; r++) { occ[r] = occ[r] || []; for (let c = x; c < x + w; c++) occ[r][c] = true; } };
-  for (const w of [...widgets].sort((a, b) => a.y - b.y || a.x - b.x)) {
-    const ww = Math.min(cols, w.w), hh = w.h;
-    search: for (let y = 0; y < 200; y++) for (let x = 0; x + ww <= cols; x++) if (free(x, y, ww, hh)) { take(x, y, ww, hh); pos.set(w, { x, y, w: ww, h: hh }); break search; }
-  }
-  return { pos, rows: Math.max(12, occ.length) };
-}
+export const portraitLayout = window.PhoneBoxPortrait.layout;
+
+const legacyWidgetSize = !window.CSS?.supports('font-size', '1cqh') && typeof ResizeObserver === 'function'
+  ? new ResizeObserver(entries => {
+    for (const { target, contentRect: { width, height } } of entries) {
+      target.style.setProperty('--panel-cqw', width / 100 + 'px');
+      target.style.setProperty('--panel-cqh', height / 100 + 'px');
+      target.style.setProperty('--panel-cqmin', Math.min(width, height) / 100 + 'px');
+    }
+  }) : null;
 
 export function buildLayout() {
   const enabled = (cfg.pages || []).filter((p) => p.enabled !== false && Array.isArray(p.widgets));
@@ -1442,13 +1442,14 @@ export function buildLayout() {
   pages = next;
   for (const m of mounted) { try { m.inst.destroy?.(); } catch (_) {} }
   mounted = [];
+  legacyWidgetSize?.disconnect();
   closeSheet();
   pager.replaceChildren();
   pages.forEach((p, pi) => {
     const grid = h('div', 'grid');
     const pageAppearance = PhoneBoxAppearance.resolve(cfg.display?.appearance, p.appearance);
     const pl = portrait ? portraitLayout(p.widgets) : null;
-    if (pl) { grid.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))'; grid.style.gridTemplateRows = `repeat(${pl.rows}, minmax(0, 1fr))`; }
+    if (pl) { grid.style.gridTemplateColumns = `repeat(${pl.cols}, minmax(0, 1fr))`; grid.style.gridTemplateRows = `repeat(${pl.rows}, minmax(0, 1fr))`; }
     for (const w of p.widgets) {
       const def = W[w.type];
       if (!def) continue;
@@ -1461,6 +1462,7 @@ export function buildLayout() {
       let inst;
       try { inst = def.create(box, ctx) || {}; } catch (e) { box.replaceChildren(h('div', 'empty', `${w.type}: ${e.message}`)); inst = {}; }
       PhoneBoxAppearance.widget(box, appearance);
+      legacyWidgetSize?.observe(box);
       mounted.push({ pi, def: inst.needs ? { ...def, needs: inst.needs, always: inst.always ?? def.always } : def, inst, ctx, dirty: true });
     }
     const sec = h('section', 'page', grid);
@@ -1910,7 +1912,16 @@ export function flashTitle() {
   showPageName(curPage);
 }
 
+let orientationTimer = 0;
+function applyPageOrientation() {
+  if (PREVIEW || !bridge?.setOrientation) return;
+  const mode = pages[curPage]?.orientation ?? cfg.display?.orientation;
+  try { bridge.setOrientation(['portrait', 'auto'].includes(mode) ? mode : 'landscape'); } catch (_) {}
+}
+
 export function onScroll() {
+  clearTimeout(orientationTimer);
+  orientationTimer = setTimeout(applyPageOrientation, 180);
   const p = Math.round(pager.scrollLeft / pageWidth());
   if (p === curPage) return;
   const prev = curPage;
@@ -1924,16 +1935,23 @@ export function onScroll() {
 }
 pager.addEventListener('scroll', onScroll, { passive: true });
 
-export function openOverview() {
-  haptic();
+export function openOverview(feedback = true) {
+  if (feedback) haptic();
   const ov = $('overview');
   const tile = (p, i) => {
+    const layout = isPortrait() ? portraitLayout(p.widgets) : null;
     const map = h('div', 'ov-map', p.widgets.map((w) => {
       const b = h('span', null, emo(WIDGET_ICONS[w.type] || '◻'));
-      b.style.gridArea = `${w.y + 1} / ${w.x + 1} / span ${w.h} / span ${w.w}`;
+      const at = layout?.pos.get(w) || w;
+      b.style.gridArea = `${at.y + 1} / ${at.x + 1} / span ${at.h} / span ${at.w}`;
       return b;
     }));
-    const t = h('button', 'ov-tile' + (i === curPage ? ' on' : ''), map, h('div', 'ov-name', h('b', null, `${i + 1}`), rich(` ${p.icon || ''} ${p.title}`)));
+    if (layout) {
+      map.style.gridTemplateColumns = `repeat(${layout.cols}, minmax(0, 1fr))`;
+      map.style.gridTemplateRows = `repeat(${layout.rows}, minmax(0, 1fr))`;
+    }
+    const name = h('div', 'ov-name', h('b', null, `${i + 1}`), rich(` ${p.icon || ''} ${p.title}`));
+    const t = h('button', 'ov-tile' + (i === curPage ? ' on' : ''), h('div', 'ov-card', map, name));
     t.addEventListener('click', (e) => { e.stopPropagation(); haptic(); closeOverview(); goPage(i, true); });
     return t;
   };
@@ -1946,10 +1964,17 @@ export function openOverview() {
     b.addEventListener('click', (e) => { e.stopPropagation(); switchPc(pc); });
     return b;
   }) : []));
-  $('ovGrid').style.setProperty('--n', Math.min(4, Math.ceil(Math.sqrt(pages.length * 1.6))));
+  $('ovCloseApp').hidden = !bridge?.closeApp || cfg.display?.pin === true || cfg.display?.homeScreen === true;
+  sizeOverview();
   ov.hidden = false;
 }
 window.openOverview = openOverview;
+
+function sizeOverview() {
+  const maxColumns = window.innerWidth < 480 ? 2 : window.innerWidth < 680 ? 3 : 4;
+  const columns = Math.ceil(Math.sqrt(pages.length * (isPortrait() ? 1 : 1.6)));
+  $('ovGrid').style.setProperty('--n', Math.max(1, Math.min(pages.length, maxColumns, columns)));
+}
 
 /** The computers this phone is paired with over Wi-Fi: [{ id, name, active }] (empty outside the app). */
 export function pairedPcs() {
@@ -1964,6 +1989,7 @@ export function switchPc(pc) {
 export function closeOverview() { $('overview').hidden = true; }
 $('overview').addEventListener('click', closeOverview);
 $('ovRules').addEventListener('click', (e) => { e.stopPropagation(); toggleRulesPause(); });
+$('ovCloseApp').addEventListener('click', (e) => { e.stopPropagation(); bridge?.closeApp?.(); });
 
 let dotsHoldTimer = 0, dotsHoldStart = null, heldDots = false;
 // ---- the page bar: the dots shown as buttons with each page's icon and name (Settings › Display › Page navigation)
@@ -2181,17 +2207,23 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowLeft') window.onAndroidKey('prev');
   else if (e.key === 'o') ($('overview').hidden ? openOverview() : closeOverview());
 });
-window.onAndroidBack = () => {
-  if (!$('approval').hidden) return; // answer it (or let it time out); Back must not dismiss a permission prompt
+window.onAndroidBack = (kiosk = false) => {
+  if (!$('approval').hidden) return true; // answer it (or let it time out); Back must not dismiss a permission prompt
   const noteEdit = document.querySelector('.note-edit');
-  if (noteEdit) { noteEdit.remove(); return; }
-  if (closeSessionDetails()) return;
+  if (noteEdit) { noteEdit.remove(); return true; }
+  if (closeSessionDetails()) return true;
   if (!$('overview').hidden) closeOverview();
   else if (sheet) closeSheet();
+  else if (!kiosk) return false;
   else if (curPage !== homeIndex()) goPage(homeIndex(), true);
   else openOverview();
+  return true;
 };
-window.addEventListener('resize', () => { buildLayout(); goPage(curPage, true); });
+window.addEventListener('resize', () => {
+  buildLayout();
+  goPage(curPage, true);
+  if (!$('overview').hidden) openOverview(false);
+});
 
 ['pointerdown', 'touchstart'].forEach((ev) => document.addEventListener(ev, (e) => {
   if (dimmed) wakeFromDim();
@@ -2370,7 +2402,9 @@ export function applyDisplay() {
   try { bridge.setLanguage?.(I18n?.getPref() || 'auto'); } catch (_) {}
   try { bridge.setVolumeKeys && bridge.setVolumeKeys(d.volumeKeys !== false); } catch (_) {}
   try { bridge.setPinned && bridge.setPinned(d.pin === true); } catch (_) {}
-  try { bridge.setOrientation && bridge.setOrientation(['portrait', 'auto'].includes(d.orientation) ? d.orientation : 'landscape'); } catch (_) {}
+  if (typeof cfg.charge?.reminders === 'boolean')
+    try { bridge.setBatteryReminders?.(cfg.charge.reminders, cfg.charge.min, cfg.charge.max); } catch (_) {}
+  applyPageOrientation();
   try { bridge.setHomeScreen && bridge.setHomeScreen(d.homeScreen === true); } catch (_) {}
   applyBrightness(true);
 }
@@ -2567,11 +2601,12 @@ window.onAgentStream = (event, data) => {
   // the stream can send events before its first state (Program.cs sends the backlog first): an event that is only
   // new to this run would dispatch now and again when the replay delivers it — hold them until the state decides
   if (event === 'open') { streamOn = true; evPre = []; return; }
-  if (event === 'close') { streamOn = false; return; }
+  if (event === 'close') { streamOn = false; D.discordCall = null; emit('discord-call'); return; }
   let d;
   try { d = JSON.parse(data); } catch (_) { return; }
   if (event === 'state') { applyState(d); for (const e of evPre || []) evOffer(e); evPre = null; }
   else if (event === 'work') applyWork(d);
+  else if (event === 'discord-call') { D.discordCall = d.call; emit('discord-call'); }
   else if (event === 'spectrum') window.dispatchEvent(new CustomEvent('phonebox-spectrum', { detail: d }));
   else if (event === 'event') { if (evPre) { evPre.push(d); if (evPre.length > 100) evPre.shift(); } else evOffer(d); }
 };

@@ -76,6 +76,7 @@ builder.Services.AddSingleton<CommandRunner>();
 builder.Services.AddSingleton<ApprovalStore>();
 builder.Services.AddSingleton<HomeAssistant>();
 builder.Services.AddSingleton<AppConsole>();
+builder.Services.AddSingleton<WowIcons>();
 builder.Services.AddSingleton<Dictation>();
 builder.Services.AddSingleton<SpectrumAnalyzer>();
 AddMonitor<SystemMonitor>(builder.Services);
@@ -411,6 +412,19 @@ app.MapGet("/api/settings", (HttpRequest req, ConfigStore cfg, HttpResponse res)
     return Results.Text(json, "application/json; charset=utf-8");
 });
 
+app.MapGet("/api/settings/start-apps", async (HttpContext ctx, CancellationToken ct) =>
+{
+    if (ctx.Connection.LocalPort != Port || !OperatingSystem.IsWindows()) return Results.NotFound();
+    try { return Results.Json(await WindowsStartApps.Read(ct)); }
+    catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or System.ComponentModel.Win32Exception or JsonException)
+    { return Results.Problem("Could not read the Windows Start menu.", statusCode: 503); }
+});
+
+app.MapGet("/api/settings/start-app-icon", (string id, HttpContext ctx) =>
+    ctx.Connection.LocalPort == Port && ShortcutIcons.StartAppIcon(id) is { } image
+        ? Results.File(image, "image/png")
+        : Results.NotFound());
+
 app.MapPut("/api/settings", async (HttpRequest req, ConfigStore cfg, ControlDeck deck, PhotoFrame photos, CameraFeeds cameras, ShortcutIconUploads icons, ILogger<Program> log, CancellationToken ct) =>
 {
     if (req.ContentType?.StartsWith("application/json") != true) return Results.StatusCode(415);
@@ -571,6 +585,7 @@ object State(IServiceProvider sp, long? ev)
 {
     var upd = sp.GetRequiredService<UpdateService>();
     var push = sp.GetRequiredService<PushStore>();
+    var deck = sp.GetRequiredService<ControlDeck>();
     return new
     {
         update = upd.Status() is { } u && (u.AppUpdate || u.AgentUpdate) ? new { latest = u.Latest, app = u.AppUpdate, agent = u.AgentUpdate } : null,
@@ -582,7 +597,7 @@ object State(IServiceProvider sp, long? ev)
         evSeq = push.Seq,
         events = ev is { } since ? push.Since(since) : [],
         pc = sp.GetRequiredService<SystemMonitor>().Snapshot(),
-        media = sp.GetRequiredService<ControlDeck>().EffectiveMedia(sp.GetRequiredService<MediaMonitor>().Snapshot()),
+        media = deck.WithMediaVolume(deck.EffectiveMedia(sp.GetRequiredService<MediaMonitor>().Snapshot())),
         audio = sp.GetRequiredService<AudioControl>().Snapshot(),
         ping = sp.GetRequiredService<PingMonitor>().Snapshot(),
         rules = sp.GetRequiredService<RuleEngine>().Active(),
@@ -668,14 +683,58 @@ app.MapPost("/api/dictate", async (string? widget, string? text, HttpRequest req
 });
 
 // App console (widget): the focused app's profile (labels only) and its keys, by profile id and slot.
-app.MapGet("/api/console", (string? widget, HttpRequest req, AppConsole console) =>
+app.MapGet("/api/console", (string? widget, string? folder, HttpRequest req, AppConsole console) =>
 {
-    var (status, body) = console.State(req.Headers["X-PhoneBox-Device"].ToString(), widget);
+    var (status, body) = console.State(req.Headers["X-PhoneBox-Device"].ToString(), widget, folder);
     return Results.Json(body, statusCode: status);
 });
-app.MapPost("/api/console/{profile}/{slot}", async (string profile, string slot, string? widget, int? times, HttpRequest req, AppConsole console, CancellationToken ct) =>
+app.MapGet("/api/console/bindings", (string? widget, string? folder, HttpRequest req, AppConsole console) =>
 {
-    var (status, error) = await console.Act(req.Headers["X-PhoneBox-Device"].ToString(), widget, profile, slot, times ?? 1, ct);
+    var (status, body) = console.Bindings(req.Headers["X-PhoneBox-Device"].ToString(), widget, folder);
+    return Results.Json(body, statusCode: status);
+});
+app.MapGet("/api/console/spells", (string? widget, string? folder, HttpContext ctx, AppConsole console) =>
+{
+    if (ctx.Connection.LocalPort != Port && !console.CanPickSpells(ctx.Request.Headers["X-PhoneBox-Device"].ToString(), widget, folder))
+        return Results.Json(new { error = "Spell picking is unavailable for this folder" }, statusCode: 403);
+    var (book, error) = WowSpellbook.Read();
+    return book is null ? Results.Json(new { error }, statusCode: 409)
+        : Results.Json(new { book.Character, book.ClassName, book.Unavailable, book.BarIcons, book.Forms,
+            spells = book.Spells.Where(x => x.IsSelectable).Select(x => new { x.Id, x.Name,
+                kind = x.Kind is "food" or "potion" ? "item" : x.Kind, x.Icon, x.Forms, x.OpensForm }) });
+});
+app.MapGet("/api/console/action-selection", (string? widget, string? folder, HttpRequest req, AppConsole console) =>
+{
+    var (status, body) = console.ActionSelection(req.Headers["X-PhoneBox-Device"].ToString(), widget, folder);
+    return Results.Json(body, statusCode: status);
+});
+app.MapPost("/api/console/action-selection", (string? widget, string? folder, long? version, string? catalog,
+    string? selection, HttpRequest req, AppConsole console) =>
+{
+    var (status, body) = console.SaveActionSelection(req.Headers["X-PhoneBox-Device"].ToString(), widget, folder, version, catalog, selection);
+    if (status == 200) StateSignal.Poke();
+    return Results.Json(body, statusCode: status);
+});
+app.MapGet("/api/console/wow-icon", async (int id, WowIcons icons, CancellationToken ct) =>
+{
+    var image = await icons.Get(id, ct);
+    return image is null ? Results.NotFound() : Results.Bytes(image, "image/jpeg");
+});
+app.MapPost("/api/console/bindings", (string? widget, int? index, string? label, string? keys, long? version, string? icon, string? folder, string? wowSpell, bool? useWowIcon, HttpRequest req, AppConsole console) =>
+{
+    var (status, body) = console.EditBinding(req.Headers["X-PhoneBox-Device"].ToString(), widget, index, label, keys, version, icon, folder, wowSpell, useWowIcon);
+    if (status == 200) StateSignal.Poke();
+    return Results.Json(body, statusCode: status);
+});
+app.MapPost("/api/console/folders", (string? widget, string? label, HttpRequest req, AppConsole console) =>
+{
+    var (status, body) = console.AddFolder(req.Headers["X-PhoneBox-Device"].ToString(), widget, label);
+    if (status == 200) StateSignal.Poke();
+    return Results.Json(body, statusCode: status);
+});
+app.MapPost("/api/console/{profile}/{slot}", async (string profile, string slot, string? widget, int? times, string? queuedSpell, string? inventoryItem, HttpRequest req, AppConsole console, CancellationToken ct) =>
+{
+    var (status, error) = await console.Act(req.Headers["X-PhoneBox-Device"].ToString(), widget, profile, slot, times ?? 1, ct, queuedSpell, inventoryItem);
     return error is null ? Results.Ok(new { ok = true }) : Results.Json(new { error }, statusCode: status);
 });
 
@@ -702,9 +761,15 @@ app.MapGet("/api/discord", (DiscordMonitor dc, ConfigStore cfg) => Results.Json(
     chat = DiscordMonitor.ChatWanted(cfg.Get()),
     chatUnread = dc.ChatUnread(),
 }));
-// Screen share (its own switch, off by default): the state, and the running apps (names only) while
+// Screen share (its own switch, off by default): the state, and the main window titles while
 // the phone's share view is open. It needs a widget's control (the global switch is not enough). code: what went wrong, for the panel to say in its language.
 app.MapGet("/api/discord/share", (bool? apps, DiscordMonitor dc) => Results.Json(dc.Share(apps == true)));
+app.MapGet("/api/discord/call", (HttpContext ctx, DiscordMonitor dc, ConfigStore cfg) =>
+{
+    var current = cfg.Get();
+    return ctx.Connection.LocalPort == Port || DiscordMonitor.CallWidgetWanted(current)
+        ? Results.Json(dc.CurrentCall(current)) : Results.NotFound();
+});
 app.MapPost("/api/discord/share/{action}", async (string action, int? pid, DiscordMonitor dc) =>
     await dc.ShareActAsync(action, pid) is { } e ? Results.BadRequest(new { error = e.Error, code = e.Code }) : Results.Ok(new { ok = true }));
 // Chat (read-only, Settings › General › Discord › chat, off by default): the chosen channel's last messages, the servers
@@ -809,7 +874,8 @@ app.MapGet("/api/state", (long? ev, HttpContext ctx) => Results.Json(State(ctx.R
 // One "state" frame for all open streams: they wake on the same second (below), so the state is built and serialized once
 // per tick, not once per phone. Everything State() reads is a singleton, so the root provider will do.
 var stateFrames = new StateFrameCache(() => State(app.Services, null), new JsonSerializerOptions(JsonSerializerDefaults.Web));
-app.MapGet("/api/stream", async (HttpContext ctx, PushStore push, SessionMonitor sessions, GitHubMonitor gh, SpectrumAnalyzer spectrum, ILogger<Program> log) =>
+app.MapGet("/api/stream", async (HttpContext ctx, PushStore push, SessionMonitor sessions, GitHubMonitor gh, SpectrumAnalyzer spectrum,
+    DiscordMonitor discord, ConfigStore cfg, ILogger<Program> log) =>
 {
     var ct = ctx.RequestAborted;
     var isPhone = ctx.Request.Headers.ContainsKey("X-PhoneBox-App");
@@ -825,11 +891,14 @@ app.MapGet("/api/stream", async (HttpContext ctx, PushStore push, SessionMonitor
     }
     using var wake = new SemaphoreSlim(0);
     var poked = 0;
+    var callChanged = 0;
     void OnEmit() { try { wake.Release(); } catch (ObjectDisposedException) { } }
     // something the phone shows just changed (see StateSignal): send a state now, not at the next whole second
     void OnPoke() { Volatile.Write(ref poked, 1); OnEmit(); }
+    void OnCallChanged() { if (Interlocked.Exchange(ref callChanged, 1) == 0) OnEmit(); }
     push.Emitted += OnEmit;
     StateSignal.Changed += OnPoke;
+    discord.CallChanged += OnCallChanged;
     try
     {
         var seq = push.Seq;
@@ -837,12 +906,23 @@ app.MapGet("/api/stream", async (HttpContext ctx, PushStore push, SessionMonitor
         var next = 0L;
         var lastSpec = 0L;
         var lastState = 0L;
+        var lastCallAt = 0L;
+        var lastCall = "null";
         var tick = 0;
         while (!ct.IsCancellationRequested)
         {
             foreach (var e in push.Since(seq)) { await Send("event", e); seq = e.Seq; }
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var tickDue = now >= next;
+            if ((tickDue || Volatile.Read(ref callChanged) != 0) && now - lastCallAt >= 150)
+            {
+                Interlocked.Exchange(ref callChanged, 0);
+                var current = cfg.Get();
+                var call = DiscordMonitor.CallWidgetWanted(current) ? discord.CurrentCall(current) : null;
+                var json = JsonSerializer.Serialize(call, opts);
+                if (json != lastCall) { lastCall = json; await Send("discord-call", new { call }); }
+                lastCallAt = now;
+            }
             var pokeDue = Volatile.Read(ref poked) == 1 && now - lastState >= 100;
             if (tickDue || pokeDue)
             {
@@ -875,6 +955,7 @@ app.MapGet("/api/stream", async (HttpContext ctx, PushStore push, SessionMonitor
             var waitMs = next - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             // a change that arrived within 100 ms of the last state waits out the rest of that gap
             if (Volatile.Read(ref poked) == 1) waitMs = Math.Min(waitMs, lastState + 100 - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            if (Volatile.Read(ref callChanged) != 0) waitMs = Math.Min(waitMs, lastCallAt + 150 - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (specActive) waitMs = Math.Min(waitMs, lastSpec + 1000 / SpectrumAnalyzer.Fps - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             await wake.WaitAsync(TimeSpan.FromMilliseconds(Math.Max(5, waitMs)), ct);
         }
@@ -885,6 +966,7 @@ app.MapGet("/api/stream", async (HttpContext ctx, PushStore push, SessionMonitor
     {
         push.Emitted -= OnEmit;
         StateSignal.Changed -= OnPoke;
+        discord.CallChanged -= OnCallChanged;
         log.LogInformation("live stream closed ({Via})", via);
     }
 });
@@ -966,17 +1048,34 @@ app.MapGet("/api/phones", (ConfigStore cfg) =>
 app.MapGet("/api/art", (MediaMonitor media) =>
     media.Art is { } art ? Results.File(art.Bytes, art.Mime) : Results.NotFound());
 
+#if WINDOWS
+app.MapPost("/api/media/volume", async (string target, int? level, string? op, MediaMonitor media, ControlDeck deck, CancellationToken ct) =>
+{
+    var result = await deck.RunWithMediaFocusAsync<MediaAppVolume?>(_ =>
+    {
+        var shown = deck.EffectiveMedia(media.Snapshot());
+        if (string.IsNullOrWhiteSpace(target) || !string.Equals(shown?.SourceId, target, StringComparison.OrdinalIgnoreCase)
+            || !media.IsCurrentVolumeSource(target))
+            return Task.FromResult<MediaAppVolume?>(null);
+        return Task.FromResult(deck.SetMediaVolume(target, level, op));
+    }, ct);
+    if (result is null) return Results.BadRequest();
+    StateSignal.Poke();
+    return Results.Json(result);
+});
+#endif
+
 app.MapPost("/api/media/{action}", async (string action, long? ms, MediaMonitor media, ControlDeck deck, CancellationToken ct) =>
 {
     var outcome = await deck.RunWithMediaFocusAsync(async token =>
     {
         var sysSnapshot = media.Snapshot();
         if (await deck.TryControlRadioMediaCoreAsync(action, sysSnapshot, token) is { } radioHandled)
-            return (Ok: radioHandled, Media: deck.EffectiveMedia(media.Snapshot()));
+            return (Ok: radioHandled, Media: deck.WithMediaVolume(deck.EffectiveMedia(media.Snapshot())));
         var starting = action is "next" or "prev" || (action == "playpause" && sysSnapshot?.Playing != true);
         var ok = await media.Control(action, ms);
         if (ok && starting) deck.StopAllRadios();
-        return (Ok: ok, Media: deck.EffectiveMedia(media.Snapshot()));
+        return (Ok: ok, Media: deck.WithMediaVolume(deck.EffectiveMedia(media.Snapshot())));
     }, ct);
     StateSignal.Poke();
     return outcome.Ok ? Results.Json(new { ok = true, media = outcome.Media }) : Results.BadRequest();

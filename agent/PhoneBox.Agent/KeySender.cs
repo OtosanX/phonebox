@@ -61,6 +61,7 @@ public static class KeySender
         "[" or "openbracket" => "bracketleft",
         "]" or "closebracket" => "bracketright",
         "voldown" => "volumedown",
+        "num lock" or "numpadlock" => "numlock",
         var x => x,
     };
 
@@ -110,13 +111,14 @@ public static class KeySender
         ["numpaddecimal"] = (0x6E, "KP_Decimal", 65), ["numpaddivide"] = (0x6F, "KP_Divide", 75),
         // Windows has no key code of its own for the keypad's Enter: it is VK_RETURN with the extended flag (WinExtended)
         ["numpadenter"] = (0x0D, "KP_Enter", 76),
+        ["numlock"] = (0x90, "Num_Lock", 71),
     };
 
     /// <summary>
     /// Keys that Windows tells apart from another key only by the "extended" flag: the keypad's Enter (VK_RETURN, like the
     /// main Enter) and its / (whose scan code is the main / key's).
     /// </summary>
-    internal static bool WinExtended(string k) => k is "numpadenter" or "numpaddivide";
+    internal static bool WinExtended(string k) => k is "numlock" or "numpadenter" or "numpaddivide";
 
     public static void SendKeys(string spec)
     {

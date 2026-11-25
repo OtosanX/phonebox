@@ -34,6 +34,10 @@ Discord account (an application can be used by its owner and testers without ver
 
 ## 3. Add the widget
 
+Choose **Discord call** for a dedicated roster of the channel or private call you are currently in. It highlights active speakers and lists their names above the roster. In the editor you can toggle avatars, mute and deafen status, elapsed time, or show only active speakers. The timer starts when the companion first sees the call. If Discord doesn't provide speaking events, the widget shows the roster and marks speaking status unavailable.
+
+Enable **Control** on the call widget for mute, deafen, input mode, and leave. The full **Discord** widget still provides channel browsing, notifications, and screen sharing. Both widgets use your existing desktop Discord connection.
+
 Add a **Discord** widget to a page in the editor. Options:
 
 | Option | Meaning |
@@ -92,10 +96,9 @@ to the widget. While you are in a voice channel:
 
 - **Choose on PC** asks Discord to share: it shows its own picker on the computer (screens and windows), or goes live
   with the game it detects.
-- The list below it holds the apps that have a window on this computer, **by name only** (no window titles), read only
-  while the share view is open on the phone. Tapping one asks Discord to share that app. Discord shares directly only
-  what it can (the games it detects); PhoneBox doesn't look games up anywhere, it watches whether the share starts and
-  otherwise tells you to use **Choose on PC**. Windows only; on Linux and macOS the list is empty.
+- The list shows each app's main window title and app name while the share view is open on the phone. Tapping a row asks
+  Discord to share that app. Discord decides which apps it can share directly, typically games it detects. If the share
+  does not start, the widget shows a message pointing to **Choose on PC**. The app list is available on Windows.
 - **Stop sharing** ends the share. Discord uses one command to start and stop, so PhoneBox sends it only after Discord
   has reported whether you are sharing (it does so right after PhoneBox connects).
 - Turning it on asks Discord for `rpc.screenshare.read` and `rpc.screenshare.write`, so **Discord asks you to approve

@@ -62,6 +62,7 @@
     <EmbeddedResource Include="settings.html" LogicalName="settings.html" />
     <EmbeddedResource Include="widgets.json" LogicalName="widgets.json" />
     <EmbeddedResource Include="templates.json" LogicalName="templates.json" />
+    <EmbeddedResource Include="wow-icon-index.csv.gz" LogicalName="wow-icon-index.csv.gz" />
     <!-- the phone's panel, served at /panel/ for the live preview in the layout editor -->
     <EmbeddedResource Include="..\..\android\app\src\main\assets\www\*.*" LogicalName="www/%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\..\android\app\src\main\assets\www\widgets\*.*" LogicalName="www/widgets/%(Filename)%(Extension)" />

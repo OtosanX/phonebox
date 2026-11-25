@@ -351,6 +351,33 @@ public sealed class DiscordTests : IDisposable
     private static bool IsSpeaking(DiscordMonitor m, string id) => m.Snapshot().Members.Single(x => x.Id == id).Speaking;
 
     [Fact]
+    public void Current_call_reports_speaking_availability_and_notifies_only_on_changes()
+    {
+        var monitor = Monitor(false);
+        var config = Config();
+        var changes = 0;
+        monitor.CallChanged += () => changes++;
+        monitor.PublishPoll(0, true, false, InRoom());
+        Assert.False(monitor.CurrentCall(config).SpeakingAvailable);
+        var start = monitor.CurrentCall(config).ObservedAt;
+        Assert.NotNull(start);
+        monitor.SpeakingChannel = "c1";
+        var member = JsonNode.Parse("""{"user_id":"7","channel_id":"c1"}""");
+        monitor.ApplySpeaking("SPEAKING_START", member);
+        monitor.ApplySpeaking("SPEAKING_START", member);
+        monitor.PublishPoll(0, true, false, InRoom());
+        var call = monitor.CurrentCall(config);
+        Assert.Equal(1, changes);
+        Assert.True(call.SpeakingAvailable);
+        Assert.True(call.Muted);
+        Assert.Equal(start, call.ObservedAt);
+        Assert.Single(call.Members, item => item.Speaking);
+        monitor.ApplySpeaking("SPEAKING_STOP", member);
+        Assert.Equal(2, changes);
+        Assert.DoesNotContain(monitor.CurrentCall(config).Members, item => item.Speaking);
+    }
+
+    [Fact]
     public async Task A_member_speaks_between_SPEAKING_START_and_SPEAKING_STOP()
     {
         var monitor = Monitor(false);

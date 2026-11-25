@@ -14,6 +14,7 @@ public sealed class Tray : IHostedService
     private readonly IHostApplicationLifetime _life;
     private readonly AdbReverse _adb;
     private readonly ConfigStore _config;
+    private readonly AgentEndpoint _endpoint;
     private static readonly ResourceManager Strings = new("PhoneBox.Agent.TrayStrings", typeof(Tray).Assembly);
     private Thread? _thread;
     private ApplicationContext? _ctx;
@@ -26,6 +27,7 @@ public sealed class Tray : IHostedService
         _life = life;
         _adb = adb;
         _config = config;
+        _endpoint = endpoint;
     }
 
     public Task StartAsync(CancellationToken ct)
@@ -130,7 +132,7 @@ public sealed class Tray : IHostedService
     }
 
     /// <summary>Adds/removes a Startup-folder shortcut (only when the user clicks the menu item).</summary>
-    private static void ToggleAutostart(CultureInfo culture)
+    private void ToggleAutostart(CultureInfo culture)
     {
         try
         {
@@ -140,6 +142,12 @@ public sealed class Tray : IHostedService
             dynamic lnk = shell.CreateShortcut(AppPaths.StartupShortcut);
             lnk.TargetPath = Environment.ProcessPath;
             lnk.WorkingDirectory = Path.GetDirectoryName(Environment.ProcessPath);
+            var arguments = new List<string>();
+            if (!string.Equals(_config.Path, AppPaths.ConfigPath, StringComparison.OrdinalIgnoreCase))
+                arguments.Add($"--config \"{_config.Path}\"");
+            if (_endpoint.Port != new AgentEndpoint().Port)
+                arguments.Add($"--port {_endpoint.Port.ToString(CultureInfo.InvariantCulture)}");
+            lnk.Arguments = string.Join(" ", arguments);
             lnk.Description = "PhoneBox agent";
             lnk.Save();
         }

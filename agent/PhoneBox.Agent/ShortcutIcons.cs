@@ -5,8 +5,8 @@ using System.Drawing.Imaging;
 namespace PhoneBox.Agent;
 
 /// <summary>
-/// Real app icons for shortcuts whose command is an actual program on disk (an .exe, an .app bundle, a Linux binary).
-/// Shell addresses (shell:AppsFolder\…), protocol handlers (ms-settings:, ms-screenclip:), URLs, builtin: commands,
+/// Real app icons for programs on disk or Windows Start menu apps.
+/// Protocol handlers (ms-settings:, ms-screenclip:), URLs, builtin: commands,
 /// and Windows' App Execution Alias stubs for packaged apps (wt.exe, ms-teams.exe: a reparse point with no icon of
 /// its own) have no real icon to read, so this returns null for them and the phone keeps showing the chosen emoji.
 /// </summary>
@@ -31,11 +31,14 @@ internal static class ShortcutIcons
     }
 
     /// <summary>Cheap check for whether <see cref="Icon"/> is worth asking for, without extracting one.</summary>
-    public static bool HasIcon(Shortcut sc) => CachedResolvePath(sc.Cmd) is not null;
+    public static bool HasIcon(Shortcut sc) => Revision(sc) is not null;
 
     /// <summary>A value that changes when the detected program's own icon could have changed (it was reinstalled).</summary>
     public static long? Revision(Shortcut sc)
     {
+#if WINDOWS
+        if (WindowsStartAppIcons.AppId(sc.Cmd) is { } id) return HashCode.Combine("start-app", id);
+#endif
         if (CachedResolvePath(sc.Cmd) is not { } path) return null;
         // A plain write time can repeat under heavy load (Windows file timestamps tick in ~15ms steps); folding in
         // the path and size as well means only an actual reinstall (new bytes, almost never the same size) changes
@@ -51,7 +54,22 @@ internal static class ShortcutIcons
         catch { return null; }
     }
 
-    public static void ClearHasIconCache() => ResolvedPathCache.Clear();
+    public static void ClearHasIconCache()
+    {
+        ResolvedPathCache.Clear();
+#if WINDOWS
+        WindowsStartAppIcons.Clear();
+#endif
+    }
+
+    public static byte[]? StartAppIcon(string appId)
+    {
+#if WINDOWS
+        return WindowsStartAppIcons.Read(appId);
+#else
+        return null;
+#endif
+    }
 
     /// <summary>The picture /api/shortcuts/icon serves: an upload first, else the program's own icon. With
     /// <paramref name="uploadOnly"/> (a Big button filling itself with the picture) only the upload, so an upload removed
@@ -61,6 +79,9 @@ internal static class ShortcutIcons
 
     public static byte[]? Icon(Shortcut sc)
     {
+#if WINDOWS
+        if (WindowsStartAppIcons.AppId(sc.Cmd) is { } id) return StartAppIcon(id);
+#endif
         var path = ResolvePath(sc.Cmd);
         if (path is null) return null;
 #if WINDOWS
