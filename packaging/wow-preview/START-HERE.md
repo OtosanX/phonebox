@@ -1,10 +1,10 @@
-# PhoneBox Spellbook 1.2.1 and PhoneBox Deck 1.2.4 preview
+# PhoneBox Spellbook 1.2.2 and PhoneBox Deck 1.2.4 preview
 
 The add-on targets World of Warcraft Forever 1.60.1. This preview uses a Windows 11 x64 PC and an Android touchscreen. The Vizio XR6M10 running Android 6.0.1 was the reference device for the full interface.
 
 ## Install the add-on and companion
 
-1. Extract `PhoneBoxSpellbook-1.2.1.zip` into World of Warcraft’s `_forever_/Interface/AddOns/` folder. The game should find `AddOns/PhoneBoxSpellbook/PhoneBoxSpellbook.toc`. Restart the game if it was running.
+1. Extract `PhoneBoxSpellbook-1.2.2.zip` into World of Warcraft’s `_forever_/Interface/AddOns/` folder. The game should find `AddOns/PhoneBoxSpellbook/PhoneBoxSpellbook.toc`. Restart the game if it was running.
 2. Install the **x64 .NET Desktop Runtime 10** and **x64 ASP.NET Core Runtime 10** from [Microsoft’s .NET 10 downloads](https://dotnet.microsoft.com/download/dotnet/10.0). Extract the Windows companion and double-click **Start PhoneBox WoW.cmd**. If you already have a PhoneBox agent open, exit it first so this instance can use port 8765. The launcher starts with a separate profile under `%LOCALAPPDATA%\PhoneBoxWoW`.
 3. Install the signed `PhoneBox-WoW-Android-1.2.4-preview.apk` on the Android device and open PhoneBox. This preview is signed separately from upstream builds. If Android reports a signature conflict with your existing PhoneBox, use a spare device or back up your pairing information and settings before replacing the existing install.
 4. For USB, enable **USB debugging**, use a data cable and accept the device’s authorization prompt. Install [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) and place its `platform-tools` folder in `%LOCALAPPDATA%\Android\Sdk`, or set the full `adb.exe` path in PhoneBox’s settings. You can also use `winget install -e --id Google.PlatformTools`. The PC agent handles USB forwarding after that.
@@ -23,7 +23,7 @@ On a personal phone, open PhoneBox from the app launcher. Android Back or **All 
 
 - Create a World of Warcraft **AddOns** project named **PhoneBox Spellbook**. Use **Action Bars** if offered.
 - Upload `PhoneBox-Spellbook-icon.png` as the project icon and paste the text from `CurseForge-listing.md` into the listing.
-- Upload `PhoneBoxSpellbook-1.2.1.zip` as the add-on file. Select **WoW Forever 1.60.1** and mark the file as a beta while collecting feedback.
+- Upload `PhoneBoxSpellbook-1.2.2.zip` as the add-on file. Select **WoW Forever 1.60.1** and mark the file as a beta while collecting feedback.
 - Host the Windows ZIP, Android APK and setup instructions on the [PhoneBox Deck GitHub fork](https://github.com/OtosanX/phonebox). Use the CurseForge project’s **Source** field to link that fork. Keep the companion binaries outside the CurseForge add-on upload.
 - `SHA256SUMS.txt` gives the checksums for the upload files.
 
