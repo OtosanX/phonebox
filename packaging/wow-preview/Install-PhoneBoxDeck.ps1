@@ -1,10 +1,22 @@
 param(
     [ValidateSet('Off', 'UntilCableChanges', 'ThreeSeconds')][string] $BatteryReminders,
+    [ValidateRange(5, 95)][int] $BatteryLow = 35,
+    [ValidateRange(10, 100)][int] $BatteryHigh = 95,
     [ValidateRange(1024, 65535)][int] $Port = 8765,
     [switch] $NoBrowser
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Read-BatteryPercent($Label, [int] $Minimum, [int] $Maximum, [int] $Default) {
+    do {
+        $entry = Read-Host "$Label ($Minimum-$Maximum%) [$Default]"
+        if ($entry -eq '') { return $Default }
+        $percent = 0
+    } until ([int]::TryParse($entry, [ref] $percent) -and $percent -ge $Minimum -and $percent -le $Maximum)
+    return $percent
+}
+
 $payload = Join-Path $PSScriptRoot 'app'
 $starterProfile = Join-Path $PSScriptRoot 'starter-profile.json'
 $sourceAgent = Join-Path $payload 'PhoneBoxAgent.exe'
@@ -38,9 +50,21 @@ if (!(Test-Path -LiteralPath $profile -PathType Leaf)) {
         Write-Host '  3. Close after 3 seconds'
         do { $choice = Read-Host 'Enter 1, 2 or 3 [1]' } until ($choice -in '', '1', '2', '3')
         $BatteryReminders = switch ($choice) { '2' { 'UntilCableChanges' } '3' { 'ThreeSeconds' } default { 'Off' } }
+        if ($BatteryReminders -ne 'Off') {
+            $BatteryLow = Read-BatteryPercent 'Remind me to plug in at or below' 5 95 35
+            $minimumHigh = $BatteryLow + 5
+            $BatteryHigh = Read-BatteryPercent 'Remind me to unplug at or above' $minimumHigh 100 ([Math]::Max(95, $minimumHigh))
+        }
+    }
+    if ($BatteryReminders -ne 'Off' -and $BatteryHigh -lt ($BatteryLow + 5)) {
+        throw 'The unplug threshold must be at least 5 percentage points above the plug-in threshold.'
     }
     $config = Get-Content -LiteralPath $starterProfile -Raw | ConvertFrom-Json
     $config.charge.reminders = $BatteryReminders -ne 'Off'
+    if ($config.charge.reminders) {
+        $config.charge.min = $BatteryLow
+        $config.charge.max = $BatteryHigh
+    }
     $config.charge | Add-Member -MemberType NoteProperty -Name autoDismissReminder -Value ($BatteryReminders -eq 'ThreeSeconds') -Force
     New-Item -ItemType Directory -Path $profileDirectory -Force | Out-Null
     $temporaryProfile = Join-Path $profileDirectory ("setup-" + [Guid]::NewGuid().ToString('N') + ".tmp")

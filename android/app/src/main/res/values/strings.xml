@@ -22,4 +22,6 @@
     <string name="battery_reminder_high">Battery at %1$d%%. This reminder clears when the tablet is disconnected from power.</string>
     <string name="battery_reminder_low_brief">Battery at %1$d%%. Connect the tablet to power.</string>
     <string name="battery_reminder_high_brief">Battery at %1$d%%. Disconnect the tablet from power.</string>
+    <string name="battery_reminder_snooze">Snooze (15 min)</string>
+    <string name="battery_reminder_mute">Don’t ask again</string>
 </resources>
