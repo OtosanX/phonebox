@@ -1262,6 +1262,8 @@ function deckCols() {
 function optVal(w, o) { return w.options && o.key in w.options ? w.options[o.key] : o.default; }
 /** An option with showWhen {key, not} is drawn only while the widget's option <key> is not set to <not> (an option that does nothing while another is off is not offered). */
 function optionShown(w, d, o) {
+  if (o.key === 'petNavSide') return Array.isArray(w.options?.folders)
+    && w.options.folders.some(folder => folder?.role === 'wow-inventory' && folder.category === 'pet');
   if (!o.showWhen) return true;
   const driver = d.options.find((x) => x.key === o.showWhen.key);
   const v = driver ? optVal(w, driver) : undefined;

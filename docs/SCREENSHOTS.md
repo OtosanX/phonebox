@@ -10,7 +10,7 @@ Captured on the same Vizio XR6M10 with WoW Forever in the foreground. The home a
 
 ## Pet Journal companions
 
-**Adventure → Pets** shows up to eight companions per page with their names and game icons. The left-hand strip stacks the Next arrow, page number, and Previous arrow above Back and Home. These previews use sample companions.
+**Adventure → Pets** shows up to eight companions per page with their names and game icons. The strip stacks the Next arrow, page number, and Previous arrow above Back and Home. The previews use the default right-hand setting and sample companions. Choose **Pets navigation side** in the WoW App console widget’s layout settings to put the strip on the left.
 
 ![Pet Journal companions and page controls in portrait](screenshots/05-pet-journal-example.png)
 

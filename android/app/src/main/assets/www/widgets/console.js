@@ -242,7 +242,7 @@ W['app-console'] = {
     const home = () => {
       if (!editor.hidden) closeEditor();
       resetPetPage();
-      box.classList.remove('ac-pet-journal');
+      box.classList.remove('ac-pet-journal', 'ac-pet-nav-left');
       folder = null;
       viewState = null;
       if (queue) queue.adding = false;
@@ -294,6 +294,7 @@ W['app-console'] = {
       const pets = entry.category === 'pet';
       const docked = Boolean(navigationTiles || pets);
       box.classList.toggle('ac-pet-journal', pets);
+      box.classList.toggle('ac-pet-nav-left', pets && o.petNavSide === 'left');
       folder = entry;
       viewState = null;
       openFolders.set(wq, entry.id);
