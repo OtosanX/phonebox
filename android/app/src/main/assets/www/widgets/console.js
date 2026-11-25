@@ -61,12 +61,14 @@ W['app-console'] = {
     choose.type = 'button';
     choose.hidden = true;
     box.classList.toggle('ac-action-bar', canEdit);
-    const previousPets = h('button', 'ac-edit-toggle', tp('Previous'));
-    const nextPets = h('button', 'ac-edit-toggle', tp('Next'));
+    const previousPets = h('button', 'ac-edit-toggle', '‹');
+    const nextPets = h('button', 'ac-edit-toggle', '›');
     previousPets.type = nextPets.type = 'button';
+    previousPets.setAttribute('aria-label', tp('Previous'));
+    nextPets.setAttribute('aria-label', tp('Next'));
     const petPageCount = h('span', 'ac-pet-page-count');
     petPageCount.setAttribute('aria-live', 'polite');
-    const petPager = h('div', 'ac-pet-pager', previousPets, petPageCount, nextPets);
+    const petPager = h('div', 'ac-pet-pager', nextPets, petPageCount, previousPets);
     petPager.hidden = true;
     let petPage = 0;
     const resetPetPage = () => { petPage = 0; petPager.hidden = true; };
@@ -79,7 +81,7 @@ W['app-console'] = {
     };
     previousPets.onclick = () => stepPetPage(-1);
     nextPets.onclick = () => stepPetPage(1);
-    const header = h('div', 'ac-head', back, title, choose, edit, petPager);
+    const header = h('div', 'ac-head', back, title, choose, edit);
     const keys = h('div', 'ac-keys');
     const dock = h('div', 'ac-nav-dock');
     dock.hidden = true;
@@ -225,7 +227,6 @@ W['app-console'] = {
       queueView.replaceChildren(...items);
     };
     const navigation = () => {
-      if (!navigationTiles || !folder) return [];
       const button = tile(tp('Home'), '🏠', '←');
       button.classList.add('ac-home-key');
       button.setAttribute('aria-label', tp('Home'));
@@ -290,20 +291,23 @@ W['app-console'] = {
     const showFolder = entry => {
       if (!editor.hidden) closeEditor();
       resetPetPage();
-      box.classList.toggle('ac-pet-journal', entry.category === 'pet');
+      const pets = entry.category === 'pet';
+      const docked = Boolean(navigationTiles || pets);
+      box.classList.toggle('ac-pet-journal', pets);
       folder = entry;
       viewState = null;
       openFolders.set(wq, entry.id);
       box.classList.toggle('ac-numpad', entry.layout === 'numpad');
-      box.classList.toggle('ac-docked-nav', Boolean(navigationTiles));
-      dock.hidden = !navigationTiles;
-      dock.replaceChildren(...navigation());
+      box.classList.toggle('ac-docked-nav', docked);
+      dock.hidden = !docked;
+      dock.replaceChildren(...(docked ? navigation() : []));
+      if (pets) dock.prepend(petPager);
       if (queue && !hasSpellQueue()) queue.adding = false;
       renderQueue();
       title.textContent = entry.label;
       tell('');
       back.textContent = tp(entry.parent ? 'Back' : 'Home');
-      back.hidden = Boolean(navigationTiles);
+      back.hidden = docked;
       choose.hidden = !canEdit || PREVIEW || entry.role !== 'wow-actions';
       edit.hidden = !canEdit || entry.role === 'wow-inventory';
       sig = '';
@@ -596,7 +600,8 @@ W['app-console'] = {
       petPager.hidden = pagesOfPets < 2;
       previousPets.disabled = petPage === 0;
       nextPets.disabled = petPage >= pagesOfPets - 1;
-      petPageCount.textContent = `${petPage + 1} / ${pagesOfPets}`;
+      petPageCount.textContent = String(petPage + 1);
+      petPageCount.setAttribute('aria-label', `${petPage + 1} / ${pagesOfPets}`);
       const first = pets ? petPage * PETS_PER_PAGE : 0;
       const visibleLabels = pets ? labels.slice(first, first + PETS_PER_PAGE) : labels;
       const actionTiles = visibleLabels.map((label, index) => {
