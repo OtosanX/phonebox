@@ -22,6 +22,22 @@ const openFolders = new Map();
 const spellQueues = new Map();
 const MAX_QUEUED_SPELLS = 12;
 const PETS_PER_PAGE = 8;
+const TILE_GAP = 8;
+
+// Prefer a grid with more room for both the icon and its label. Fit the widest
+// row first so uneven results (such as four tiles over three) stay balanced.
+function fitActionGrid(count, width, height, maxColumns) {
+  let best = { columns: 1, tileSize: -Infinity };
+  for (let columns = 1; columns <= Math.min(count, maxColumns); columns++) {
+    const rows = Math.ceil(count / columns);
+    const widestRow = Math.ceil(count / rows);
+    const tileWidth = (width - TILE_GAP * (widestRow - 1)) / widestRow;
+    const tileHeight = (height - TILE_GAP * (rows - 1)) / rows;
+    const tileSize = Math.min(tileWidth, tileHeight);
+    if (tileSize > best.tileSize) best = { columns: widestRow, tileSize };
+  }
+  return best.columns;
+}
 
 async function post(path) {
   const ctl = new AbortController();
@@ -115,11 +131,14 @@ W['app-console'] = {
       const width = keys.clientWidth, height = keys.clientHeight;
       const keypad = fullKeypad();
       const pets = folder?.category === 'pet';
-      const cols = keypad ? 4 : pets ? (width >= 420 && width >= height ? 4 : 2)
+      const fitsActions = navigationTiles && folder && !keypad && !pets && visibleTiles.length > 0;
+      let cols = keypad ? 4 : pets ? (width >= 420 && width >= height ? 4 : 2)
         : !folder && folders ? (width >= 600 ? 4 : 2) : (width >= 600 ? 6 : width >= 360 ? 3 : 2);
+      if (fitsActions) cols = fitActionGrid(visibleTiles.length, width, height, cols);
       const rows = keypad ? 5 : Math.max(1, Math.ceil(visibleTiles.length / cols));
       const balanced = navigationTiles && !keypad && visibleTiles.length > 0;
       keys.classList.toggle('ac-balanced-keys', Boolean(balanced));
+      keys.classList.toggle('ac-fit-actions', Boolean(fitsActions));
       if (balanced && arrangedColumns !== cols) {
         const base = Math.floor(visibleTiles.length / rows);
         const extra = visibleTiles.length % rows;
@@ -135,10 +154,16 @@ W['app-console'] = {
         keys.replaceChildren(...lines);
         arrangedColumns = cols;
       }
-      const max = keypad ? 112 : !folder && folders ? 160 : 128;
-      const gap = 8;
-      const available = Math.floor((height - gap * (rows - 1)) / rows);
+      const tileWidth = (width - TILE_GAP * (cols - 1)) / cols;
+      const max = fitsActions ? Math.min(240, Math.round(tileWidth * 1.15))
+        : keypad ? 112 : !folder && folders ? 160 : 128;
+      const available = Math.floor((height - TILE_GAP * (rows - 1)) / rows);
       const row = Math.max(42, Math.min(max, available));
+      if (fitsActions) {
+        const size = Math.min(tileWidth, row);
+        keys.style.setProperty('--ac-action-icon', Math.max(18, Math.min(48, Math.round(size * .33))) + 'px');
+        keys.style.setProperty('--ac-action-label', Math.max(12, Math.min(18, Math.round(size * .15))) + 'px');
+      }
       keys.style.setProperty('--ac-cols', cols);
       keys.style.setProperty('--ac-row', row + 'px');
       keys.style.alignContent = row <= available ? 'center' : 'start';

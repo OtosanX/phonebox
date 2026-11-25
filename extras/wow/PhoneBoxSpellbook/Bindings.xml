@@ -1,0 +1,22 @@
+<Bindings>
+    <Binding name="PHONEBOX_READYCHECK" hidden="true">
+        local readyCheck = C_PartyInfo and C_PartyInfo.DoReadyCheck or DoReadyCheck;
+        if readyCheck then readyCheck(); end
+    </Binding>
+    <Binding name="PHONEBOX_GROUPFINDER" hidden="true">
+        if not LFGParentFrame and GroupFinderVanillaStyle_LoadUI then
+            GroupFinderVanillaStyle_LoadUI();
+        end
+        if LFGVanilla_ToggleFrame then
+            LFGVanilla_ToggleFrame();
+        elseif ToggleGroupFinderFrame then
+            ToggleGroupFinderFrame();
+        elseif ToggleLFGParentFrame then
+            ToggleLFGParentFrame();
+        elseif ToggleLFDParentFrame then
+            ToggleLFDParentFrame();
+        elseif PVEFrame_ToggleFrame then
+            PVEFrame_ToggleFrame();
+        end
+    </Binding>
+</Bindings>

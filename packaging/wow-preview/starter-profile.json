@@ -103,6 +103,19 @@
         "apps": "Wow"
       },
       {
+        "label": "Party & Raid",
+        "id": "wow-party-tools",
+        "apps": "Wow",
+        "keys": [
+          { "label": "Next Enemy", "keys": "", "icon": "🎯", "wowSpell": "PARTY:NEXT_ENEMY" },
+          { "label": "Ready Check", "keys": "", "icon": "✅", "wowSpell": "PARTY:READY_CHECK" },
+          { "label": "Group Finder", "keys": "", "icon": "👥", "wowSpell": "PARTY:GROUP_FINDER" },
+          { "label": "Skull Marker", "keys": "", "icon": "💀", "wowSpell": "PARTY:MARK_SKULL" },
+          { "label": "Cross Marker", "keys": "", "icon": "❌", "wowSpell": "PARTY:MARK_CROSS" },
+          { "label": "Clear Marker", "keys": "", "icon": "🚫", "wowSpell": "PARTY:CLEAR_MARKER" }
+        ]
+      },
+      {
         "label": "Food & Drink",
         "id": "wow-adventure-food",
         "keys": [],
@@ -145,6 +158,11 @@
                 "icon": "🧭",
                 "label": "Adventure",
                 "id": "wow-adventure"
+              },
+              {
+                "icon": "🚩",
+                "label": "Party & Raid",
+                "id": "wow-party-tools"
               },
               {
                 "category": "food",

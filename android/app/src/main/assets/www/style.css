@@ -1545,6 +1545,9 @@ body.waking::after { opacity: 0; pointer-events: auto; transition: opacity .2s e
 .ac-key-icon svg { width: 1em; height: 1em; }
 .ac-wow-icon { width: 34px; height: 34px; border-radius: 5px; display: block; object-fit: contain; }
 .ac-key-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ac-fit-actions .ac-key-icon { font-size: var(--ac-action-icon); }
+.ac-fit-actions .ac-wow-icon { width: var(--ac-action-icon); height: var(--ac-action-icon); }
+.ac-fit-actions .ac-key-label { font-size: var(--ac-action-label); white-space: normal; line-height: 1.15; }
 .w.ac.ac-pet-nav-left.ac-docked-nav { grid-template-columns: auto minmax(0, 1fr); }
 .w.ac.ac-pet-nav-left.ac-docked-nav.ac-has-dial { grid-template-columns: auto minmax(0, 1fr) auto; }
 .ac-pet-nav-left.ac-docked-nav .ac-keys { grid-column: 2; }

@@ -45,11 +45,11 @@ end
 
 local function collectActions(class)
     local actions, seen = {}, {}
-    local function add(kind, id, name, icon, attr, forms, opens)
+    local function add(kind, id, name, icon, attr, forms, opens, binding)
         if not name or name == "" or seen[id] then return end
         seen[id] = true
         actions[#actions + 1] = { kind = kind, id = id, name = name, icon = tonumber(icon) or 0,
-            attr = attr, forms = forms or "", opens = opens or 0 }
+            attr = attr, forms = forms or "", opens = opens or 0, binding = binding }
     end
     local bank = Enum.SpellBookSpellBank.Player
     for line = 1, C_SpellBook.GetNumSpellBookSkillLines() do
@@ -69,6 +69,16 @@ local function collectActions(class)
         end
     end
     if #actions == 0 then return actions end
+
+    local function addPartyAction(id, name, command)
+        add("macro", "PARTY:" .. id, name, nil, nil, nil, nil, command)
+    end
+    addPartyAction("NEXT_ENEMY", "Next Enemy", "TARGETNEARESTENEMY")
+    addPartyAction("READY_CHECK", "Ready Check", "PHONEBOX_READYCHECK")
+    addPartyAction("GROUP_FINDER", "Group Finder", "PHONEBOX_GROUPFINDER")
+    addPartyAction("MARK_SKULL", "Skull Marker", "RAIDTARGET8")
+    addPartyAction("MARK_CROSS", "Cross Marker", "RAIDTARGET7")
+    addPartyAction("CLEAR_MARKER", "Clear Marker", "RAIDTARGETNONE")
 
     local openers = {}
     for _, action in ipairs(actions) do
@@ -208,6 +218,10 @@ local function collectActions(class)
 end
 
 local function bindAction(action, index, shortcut)
+    if action.binding then
+        SetOverrideBinding(owner, false, shortcut, action.binding)
+        return GetBindingAction(shortcut, true) == action.binding
+    end
     if not action.attr then
         SetOverrideBindingSpell(owner, false, shortcut, action.name)
         return GetBindingAction(shortcut, true) == "SPELL " .. action.name
