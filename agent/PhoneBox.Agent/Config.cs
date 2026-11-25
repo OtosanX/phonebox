@@ -804,6 +804,7 @@ public sealed partial class ConfigStore(string path)
             p.DialRight = string.IsNullOrWhiteSpace(p.DialRight) ? null : p.DialRight.Trim();
             p.DialPress = string.IsNullOrWhiteSpace(p.DialPress) ? null : p.DialPress.Trim();
         }
+        AppConsole.AddHunterPetFolders(c);
         c.Calendars = (c.Calendars ?? []).Where(x => x is not null).Take(20).ToList();
         foreach (var cal in c.Calendars) { cal.Name = cal.Name?.Trim() ?? ""; cal.Url = cal.Url?.Trim() ?? ""; }
         c.Feeds = (c.Feeds ?? []).Where(x => x is not null).Take(30).ToList();

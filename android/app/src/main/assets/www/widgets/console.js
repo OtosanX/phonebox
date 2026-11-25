@@ -545,6 +545,10 @@ W['app-console'] = {
     };
 
     const render = (state) => {
+      if (folder?.category === 'hunter-pet' && state?.hunter === false) {
+        const parent = folders.find(entry => entry.id === folder.parent);
+        if (parent) { showFolder(parent); return; }
+      }
       viewState = state;
       // turns counted for one app never go to the next one's profile
       // and a touch that started on one app's dial never presses the next one's
@@ -558,7 +562,8 @@ W['app-console'] = {
       const currentFolder = folder;
       const adding = hasSpellQueue() && queue.adding;
       const children = currentFolder ? folders?.filter(entry => entry.parent === currentFolder.id
-        && (entry.form !== 30 || state?.stealthed === true)) || [] : [];
+        && (entry.form !== 30 || state?.stealthed === true)
+        && (entry.category !== 'hunter-pet' || state?.hunter === true)) || [] : [];
       const actionTiles = (profile ? profile.keys : []).map((label, i) => {
         const b = canEdit ? tile(label, profile.icons?.[i], String(i + 1), profile.iconIds?.[i]) : h('button', 'ac-key', label);
         if (fullKeypad()) b.style.gridArea = NUMPAD_AREAS[i];
@@ -620,9 +625,10 @@ W['app-console'] = {
       else say('');
       if (folder && state?.elevated) tell(tp('Windows blocks input to the administrator app in front.'));
       else if (folder && state?.focused === false) tell(tp(state.keypad ? 'Bring a Windows app to the front.' : 'Bring WoW to the front to use these buttons.'));
-      else if (state?.inventory && !profile?.keys.length) tell(tp(folder?.category === 'pet'
-        ? 'No synced pet commands or companion items. Run /pbspells in WoW to refresh.'
-        : 'No synced items here. Run /pbspells in WoW to refresh your bags.'));
+      else if (state?.inventory && !profile?.keys.length) tell(tp({
+        pet: 'No synced Pet Journal companions. Run /pbspells in WoW to refresh.',
+        'hunter-pet': 'Call your hunter pet and run /pbspells in WoW to refresh its commands.',
+      }[folder?.category] || 'No synced items here. Run /pbspells in WoW to refresh your bags.'));
       else if (exit?.needsSync) tell(tp('Run /pbspells in WoW to enable Leave Stealth.'));
       else if (folder && profile?.keys.length && profile.bound?.every(value => !value)) tell(tp('Assign a keybind in Action bar folders.'));
       else if (folder && state?.keypad) tell(tp('Sends to the Windows app in front.'));
@@ -636,20 +642,24 @@ W['app-console'] = {
       polling = true; lastPoll = Date.now();
       try {
         if (PREVIEW && requestedFolder) {
+          const needsLive = requestedFolder.role === 'wow-inventory'
+            || folders?.some(entry => entry.parent === requestedFolder.id && entry.category === 'hunter-pet');
+          const live = needsLive ? await api(`/console?${wq}${fq()}`).catch(() => null) : null;
+          if (!alive || requestedFolder !== folder) return;
           if (requestedFolder.role === 'wow-inventory') {
-            const live = await api(`/console?${wq}${fq()}`).catch(() => null);
-            if (!alive || requestedFolder !== folder) return;
             const bag = live?.profile || { id: requestedFolder.id, label: requestedFolder.label, keys: [] };
             render({ supported: true, control: true, focused: true, inventory: true,
+              hunter: live?.hunter,
               profile: { ...bag, available: bag.keys.map(() => true) } });
             return;
           }
           const draft = cfg.console?.profiles?.find(p => p.id === requestedFolder.id);
           const buttons = (draft?.keys || []).filter(k => k.label?.trim() || k.keys?.trim());
           render({ supported: true, control: o.control === true, focused: true, keypad: requestedFolder.allApps === true,
+            hunter: live?.hunter,
             profile: { id: requestedFolder.id, label: requestedFolder.label,
               keys: buttons.map(k => k.label?.trim() || k.keys?.trim()),
-              queueIds: buttons.map(k => k.wowSpell && !/^(ITEM|TRINKET|POISON|PET|MACRO|EXIT):/.test(k.wowSpell) ? k.wowSpell : null),
+              queueIds: buttons.map(k => k.wowSpell && !/^(ITEM|TRINKET|POISON|PET|COMPANION|MACRO|EXIT):/.test(k.wowSpell) ? k.wowSpell : null),
               icons: buttons.map(k => k.icon), iconIds: buttons.map(k => k.useWowIcon === false ? 0 : k.wowIcon),
               opensForm: buttons.map(k => k.wowOpenForm || (k.wowSpell === 'ROGUE:Stealth' ? 30 : 0)),
               bound: buttons.map(k => Boolean(k.wowSpell || k.keys?.trim())) } });

@@ -4,7 +4,7 @@ Use an Android touchscreen as a customizable control panel for World of Warcraft
 
 - Add learned spells, existing macros, usable inventory items and available pet actions through the PhoneBox web editor.
 - Organize form-specific actions in subfolders. For supported stealth states, the deck can switch to the stealth actions when the in-game state changes.
-- Use the Adventure folder for your detected Hearthstone and fishing setup, plus separate Food & Drink, Potions and Pets folders.
+- Use Adventure for your detected Hearthstone and fishing setup, plus Food & Drink, Potions, and Pets. Pets lists collected Pet Journal companions. Hunters also get a separate Hunter Pet folder for active combat-pet commands.
 - Use game icons where available. Every cast or item use requires a separate deliberate tap. WoW applies its normal rules for combat, forms, targeting and cooldowns.
 
 ## Requirements

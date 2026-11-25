@@ -18,6 +18,31 @@ local poisonIDs = {
 local buttons = {}
 local formData = PhoneBoxFormData
 
+local function collectCompanions(add)
+    local journal = C_PetJournal
+    if not journal or not journal.GetOwnedPetIDs or not journal.GetPetInfoTableByPetID then return end
+    local companions = {}
+    for _, id in ipairs(journal.GetOwnedPetIDs() or {}) do
+        if type(id) == "string" and id:match("^BattlePet%-%x+%-%x+$") then
+            local pet = journal.GetPetInfoTableByPetID(id)
+            local name = pet and (pet.customName or pet.name)
+            if name and name ~= "" then
+                companions[#companions + 1] = { id = id, name = name, icon = pet.icon, favorite = pet.isFavorite == true }
+            end
+        end
+    end
+    table.sort(companions, function(a, b)
+        if a.favorite ~= b.favorite then return a.favorite end
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    local summon = SLASH_SUMMON_BATTLE_PET1 or "/summonpet"
+    for _, pet in ipairs(companions) do
+        add("pet", "COMPANION:" .. pet.id, pet.name, pet.icon,
+            { type = "macro", macrotext = summon .. " " .. pet.id })
+    end
+end
+
 local function collectActions(class)
     local actions, seen = {}, {}
     local function add(kind, id, name, icon, attr, forms, opens)
@@ -127,7 +152,6 @@ local function collectActions(class)
                     local kind = "item"
                     if classID == 0 and subClass == 5 then kind = "food" end
                     if classID == 0 and subClass == 1 then kind = "potion" end
-                    if classID == 15 and subClass == 2 then kind = "pet" end
                     add(kind, "ITEM:" .. id, name, icon, { type = "item", item = "item:" .. id })
                 end
             end
@@ -151,7 +175,7 @@ local function collectActions(class)
         end
     end
 
-    if UnitExists("pet") then
+    if class == "HUNTER" and UnitExists("pet") then
         local commands = {
             PET_ACTION_ATTACK = { "attack", "Pet attack" },
             PET_ACTION_FOLLOW = { "follow", "Pet follow" },
@@ -179,6 +203,7 @@ local function collectActions(class)
     end
     for index = 1, general do macro(index, "account") end
     for index = 1, personal do macro((MAX_ACCOUNT_MACROS or 120) + index, realm .. ":" .. character) end
+    collectCompanions(add)
     return actions
 end
 
@@ -274,7 +299,8 @@ local function refresh()
     end)
 end
 
-for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED", "PLAYER_REGEN_ENABLED", "UPDATE_MACROS", "PLAYER_EQUIPMENT_CHANGED" }) do
+for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED", "PLAYER_REGEN_ENABLED", "UPDATE_MACROS",
+    "PLAYER_EQUIPMENT_CHANGED", "PET_JOURNAL_LIST_UPDATE" }) do
     owner:RegisterEvent(event)
 end
 owner:RegisterUnitEvent("UNIT_PET", "player")

@@ -11,7 +11,7 @@ internal sealed record WowSpell(string Id, string Name, string Shortcut, string 
     internal bool IsSelectable => !IsFormExit && !Id.StartsWith("ADVENTURE:", StringComparison.Ordinal);
 }
 
-internal sealed record WowSpellList(string Character, string ClassName, List<WowSpell> Spells, int Unavailable, int ProcessId,
+internal sealed record WowSpellList(string Character, string ClassName, string ClassId, List<WowSpell> Spells, int Unavailable, int ProcessId,
     Dictionary<string, int> BarIcons, Dictionary<int, string> Forms);
 
 internal static partial class WowSpellbook
@@ -128,7 +128,7 @@ internal static partial class WowSpellbook
         }
         if (spells.Any(spell => (spell.OpensForm != 0 && !forms.ContainsKey(spell.OpensForm))
             || spell.Forms?.Any(id => !forms.ContainsKey(id)) == true)) return null;
-        return new WowSpellList(lines[2], lines[1], spells, unavailable, processId, bar, forms);
+        return new WowSpellList(lines[2], lines[1], lines[0], spells, unavailable, processId, bar, forms);
     }
 
     private static bool TryForm(string text, out int id) => int.TryParse(text, out id) && id is >= 1 and <= 64;

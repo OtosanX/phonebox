@@ -110,11 +110,46 @@ public sealed class AppConsole(ConfigStore config, ILogger<AppConsole> log)
 
     private static string? InventoryKind(WidgetConfig w, string? folder) =>
         folder is not null && FolderFor(w, folder) is { } entry && FolderText(entry, "role") == "wow-inventory"
-            && FolderText(entry, "category") is ("food" or "potion" or "pet") and var category ? category : null;
+            && FolderText(entry, "category") is ("food" or "potion" or "pet" or "hunter-pet") and var category ? category : null;
+
+    internal static bool InventoryMatches(WowSpellList book, WowSpell action, string category) => category switch
+    {
+        "pet" => action.Kind == "pet" && action.Id.StartsWith("COMPANION:", StringComparison.Ordinal),
+        "hunter-pet" => book.ClassId == "HUNTER" && action.Kind == "pet" && action.Id.StartsWith("PET:", StringComparison.Ordinal),
+        _ => action.Kind == category,
+    };
 
     private static WowSpell? InventoryAction(WowSpellList? book, WidgetConfig w, string folder, string? item) =>
-        item is not null && InventoryKind(w, folder) is { } kind
-            ? book?.Spells.FirstOrDefault(action => action.Kind == kind && action.Id == item) : null;
+        item is not null && book is not null && InventoryKind(w, folder) is { } kind
+            ? book.Spells.FirstOrDefault(action => action.Id == item && InventoryMatches(book, action, kind)) : null;
+
+    internal static void AddHunterPetFolders(AgentConfig config)
+    {
+        foreach (var widget in config.Pages.SelectMany(page => page.Widgets ?? []).Where(widget => widget.Type == "app-console"))
+        {
+            if (widget.Opt("folders") is not { ValueKind: JsonValueKind.Array } folders) continue;
+            var entries = folders.EnumerateArray().ToList();
+            foreach (var entry in folders.EnumerateArray())
+            {
+                if (FolderText(entry, "id") is not { } id || FolderText(entry, "parent") is not { } parent
+                    || InventoryKind(widget, id) != "pet" || entries.Any(other => FolderText(other, "parent") == parent
+                        && FolderText(other, "category") == "hunter-pet")) continue;
+                var profile = config.Console.Profiles.FirstOrDefault(profile => profile.Id == id);
+                if (profile is null || !WowSpellbook.Supports(profile)) continue;
+                var hunterId = id + "-hunter";
+                if (!config.Console.Profiles.Any(profile => profile.Id == hunterId))
+                {
+                    if (config.Console.Profiles.Count >= MaxProfiles) continue;
+                    config.Console.Profiles.Add(new() { Id = hunterId, Label = "Hunter Pet", Apps = profile.Apps });
+                }
+                entries.Add(JsonSerializer.SerializeToElement(new
+                {
+                    id = hunterId, parent, label = "Hunter Pet", icon = "🐺", role = "wow-inventory", category = "hunter-pet",
+                }));
+            }
+            if (entries.Count != folders.GetArrayLength()) widget.Set("folders", entries);
+        }
+    }
 
     private static string? FolderText(JsonElement entry, string key) =>
         entry.ValueKind == JsonValueKind.Object && entry.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String
@@ -354,7 +389,7 @@ public sealed class AppConsole(ConfigStore config, ILogger<AppConsole> log)
         var actions = spells?.Spells.ToDictionary(x => x.Id, StringComparer.Ordinal);
         var inventoryKind = InventoryKind(w, folder);
         var inventory = inventoryKind is not null && spells is not null
-            ? spells.Spells.Where(a => a.Kind == inventoryKind).OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()
+            ? spells.Spells.Where(a => InventoryMatches(spells, a, inventoryKind)).OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToArray()
             : [];
         var shown = inventoryKind is null ? profile?.Keys ?? [] : inventory.Select(a => LinkAction(a, null)).ToList();
         var exit = FormExit(spells, w, folder);
@@ -374,6 +409,7 @@ public sealed class AppConsole(ConfigStore config, ILogger<AppConsole> log)
             elevated,
             keypad,
             stealthed,
+            hunter = spells?.ClassId == "HUNTER",
             inventory = inventoryKind is not null,
             formExit = exit is null && !showRogueExit ? null : new
             {
@@ -432,7 +468,7 @@ public sealed class AppConsole(ConfigStore config, ILogger<AppConsole> log)
         if (useInventory)
         {
             if (!WowSpellbook.Supports(profile) || InventoryAction(book, w, profileId, inventoryItem) is not { } item)
-                return (409, "That bag item is unavailable. Run /pbspells to refresh your bags.");
+                return (409, "That action is unavailable. Run /pbspells in WoW to refresh.");
             wowSpell = item.Id;
         }
         var spec = wowSpell is null ? profile.Spec(slot) : book?.Spells.FirstOrDefault(spell => spell.Id == wowSpell)?.Shortcut;

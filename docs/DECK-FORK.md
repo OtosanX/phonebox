@@ -16,6 +16,6 @@ PhoneBox Deck builds on [PhoneBox by Ersin KOÇ](https://github.com/ersinkoc/pho
 
 **PhoneBox Spellbook** is a separate World of Warcraft add-on prepared for CurseForge. Its add-on source lives in [extras/wow/PhoneBoxSpellbook](../extras/wow/PhoneBoxSpellbook). The PhoneBox Deck fork supplies the Windows and Android companions.
 
-The WoW App Console includes a spell and item picker, eligible form and stealth folders, game icons, action-bar shortcuts, and the Adventure menus for Hearthstone, fishing, food, potions and pets. A queue lets you choose the order and execute each step with a separate tap. The Windows companion reads the add-on’s local saved export, and supported stealth states use a visible in-game indicator.
+The WoW App Console includes a spell and item picker, eligible form and stealth folders, game icons, action-bar shortcuts, and Adventure menus for Hearthstone, fishing, food, potions, and collected Pet Journal companions. The Hunter Pet folder shows active combat-pet commands for Hunters. A queue lets you choose the order and execute each step with a separate tap. The Windows companion reads the add-on’s local saved export, and supported stealth states use a visible in-game indicator.
 
 Use matching builds from this fork. The upstream installers and release files do not include these changes. See the [preview quick start](../packaging/wow-preview/START-HERE.md) for installation and pairing.

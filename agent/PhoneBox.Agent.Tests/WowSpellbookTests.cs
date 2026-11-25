@@ -50,6 +50,36 @@ public sealed class WowSpellbookTests
         $"PhoneBoxSpellbookExport = \"PB{version}:" + Convert.ToHexString(Encoding.UTF8.GetBytes(data)) + "\"\r\n";
 
     [Theory]
+    [InlineData("HUNTER", "Jäger", true)]
+    [InlineData("WARLOCK", "Hexenmeister", false)]
+    public void KeepsJournalCompanionsSeparateFromHunterCommands(string classId, string name, bool hunter)
+    {
+        var data = $"{classId}\n{name}\nExample\n1\tpet\tCOMPANION:BattlePet-0-1234\t132598\tKitten\t\t0"
+            + "\n2\tpet\tPET:follow\t132599\tPet follow\t\t0\n3\tpet\tITEM:3\t132600\tCaged pet\t\t0\n0";
+        var book = Assert.IsType<WowSpellList>(WowSpellbook.Parse(Export(data, 3), 16));
+        Assert.Equal(new[] { "Kitten" }, book.Spells.Where(a => AppConsole.InventoryMatches(book, a, "pet")).Select(a => a.Name));
+        Assert.Equal(hunter ? new[] { "Pet follow" } : [], book.Spells.Where(a => AppConsole.InventoryMatches(book, a, "hunter-pet")).Select(a => a.Name));
+    }
+
+    [Fact]
+    public void AddsHunterPetFolderToExistingAdventureLayoutOnce()
+    {
+        var widget = new WidgetConfig { Type = "app-console" };
+        widget.Set("folders", new[] { new { id = "pets", parent = "adventure", role = "wow-inventory", category = "pet" } });
+        var config = new AgentConfig { Pages = [new() { Widgets = [widget] }] };
+        config.Console.Profiles.Add(new() { Id = "pets", Apps = "Wow" });
+
+        AppConsole.AddHunterPetFolders(config);
+        AppConsole.AddHunterPetFolders(config);
+
+        var entry = widget.Opt("folders")!.Value.EnumerateArray().Last();
+        Assert.Equal(2, widget.Opt("folders")!.Value.GetArrayLength());
+        Assert.Equal("hunter-pet", entry.GetProperty("category").GetString());
+        Assert.Equal("adventure", entry.GetProperty("parent").GetString());
+        Assert.Single(config.Console.Profiles, p => p.Id == "pets-hunter" && p.Apps == "Wow");
+    }
+
+    [Theory]
     [InlineData(8, true, 0x26f03d)]
     [InlineData(12, false, 0xfa731a)]
     [InlineData(8, null, 0x000000)]
