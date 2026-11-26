@@ -6,7 +6,7 @@ I’m **OtosanX**. I forked [PhoneBox by Ersin KOÇ](https://github.com/ersinkoc
 
 ## Get started
 
-1. Download the setup ZIP from the [PhoneBox Deck 1.2.7 preview](https://github.com/OtosanX/phonebox/releases/tag/deck-preview-v1.2.7), extract it, and open **Install PhoneBox Deck.cmd**. The same release includes the Android app and the PhoneBox Spellbook add-on for WoW Forever.
+1. Download the setup ZIP from the [PhoneBox Deck 1.2.8 preview](https://github.com/OtosanX/phonebox/releases/tag/deck-preview-v1.2.8), extract it, and open **Install PhoneBox Deck.cmd**. The same release includes the Android app and the PhoneBox Spellbook add-on for WoW Forever.
 2. Install **PhoneBox Spellbook** for WoW Forever 1.60.1 and follow the [setup guide](packaging/wow-preview/START-HERE.md). The [add-on source](extras/wow/PhoneBoxSpellbook) is in this repository.
 3. In WoW, type `/pbspells` outside combat. In the PhoneBox web editor, open **WoW Actions → Choose actions** to pick what goes on your deck.
 

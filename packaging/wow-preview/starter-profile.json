@@ -103,6 +103,16 @@
         "apps": "Wow"
       },
       {
+        "label": "Camping",
+        "id": "wow-camping",
+        "apps": "Wow",
+        "keys": [
+          { "label": "Campfire", "keys": "", "icon": "🔥", "wowSpell": "ITEM:279981" },
+          { "label": "Tent", "keys": "", "icon": "⛺", "wowSpell": "ITEM:279978" },
+          { "label": "Cozy Sleeping Bag", "keys": "", "icon": "🛏️", "wowSpell": "ITEM:211527" }
+        ]
+      },
+      {
         "label": "Party & Raid",
         "id": "wow-party-tools",
         "apps": "Wow",
@@ -158,6 +168,11 @@
                 "icon": "🧭",
                 "label": "Adventure",
                 "id": "wow-adventure"
+              },
+              {
+                "icon": "⛺",
+                "label": "Camping",
+                "id": "wow-camping"
               },
               {
                 "icon": "🚩",

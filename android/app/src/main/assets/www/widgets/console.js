@@ -23,6 +23,13 @@ const spellQueues = new Map();
 const MAX_QUEUED_SPELLS = 12;
 const PETS_PER_PAGE = 8;
 const TILE_GAP = 8;
+const WOW_ACTION_CATEGORIES = [
+  ['spell', 'Spells'], ['form', 'Form and stance abilities'], ['addon', 'Add-on actions'],
+  ['camping', 'Camping'], ['item', 'Bag items'], ['food', 'Food and drink'], ['potion', 'Potions'],
+  ['trinket', 'Trinkets'], ['poison', 'Poisons'], ['pet', 'Pets'], ['macro', 'WoW macros'],
+];
+const wowCategory = action => action.category || (action.forms?.length ? 'form' : action.kind);
+const actionOption = (value, label) => Object.assign(h('option', null, label), { value });
 
 // Prefer a grid with more room for both the icon and its label. Fit the widest
 // row first so uneven results (such as four tiles over three) stay balanced.
@@ -381,10 +388,6 @@ W['app-console'] = {
         if (!response.ok) throw new Error(book.error);
         let pendingSave = false;
         let category = null;
-        const groups = new Map([
-          ['spell', 'Spells'], ['form', 'Form and stance abilities'], ['trinket', 'Trinkets'], ['item', 'Bag items'],
-          ['poison', 'Poisons'], ['pet', 'Pets'], ['macro', 'WoW macros'],
-        ]);
         const checked = book.actions.map(action => action.selected);
         const summary = () => book.character + ' · ' + book.className + ' · ' +
           checked.filter(Boolean).length + ' ' + tp('selected') +
@@ -393,7 +396,7 @@ W['app-console'] = {
           const checkbox = h('input');
           checkbox.type = 'checkbox';
           checkbox.checked = checked[index];
-          const group = action.forms?.length ? 'form' : action.kind;
+          const group = wowCategory(action);
           const names = (action.forms || []).map(form => book.forms[form]).filter(Boolean).join(', ');
           const label = h('span', null, action.name, ...(names ? [h('small', null, names)] : []));
           const row = h('label', 'ac-action-choice', checkbox);
@@ -413,7 +416,7 @@ W['app-console'] = {
           const filter = search.value.trim().toLowerCase();
           menuBack.hidden = category === null;
           list.replaceChildren();
-          for (const [group, label] of groups) {
+          for (const [group, label] of WOW_ACTION_CATEGORIES) {
             if (category !== null && group !== category) continue;
             const options = rows.filter(item => item.group === group && item.name.includes(filter));
             if (!options.length) continue;
@@ -473,9 +476,9 @@ W['app-console'] = {
         const folderQuery = fq();
         const bindings = await api(`/console/bindings?${wq}${folderQuery}`);
         if (!alive || editor.hidden) return;
-        const select = h('select'), symbol = h('select'), spells = h('select');
+        const select = h('select'), symbol = h('select'), categories = h('select'), spells = h('select');
         const label = h('input'), bind = h('input');
-        let linkedSpell = '', spellBook = null;
+        let linkedSpell = '', availableActions = [];
         const gameIcon = h('option', null, tp('Use WoW icon'));
         gameIcon.value = 'wow';
         label.maxLength = 24;
@@ -486,11 +489,12 @@ W['app-console'] = {
         save.type = 'submit';
         const pick = h('button', 'ac-key', tp('Load WoW actions'));
         pick.type = 'button';
+        const categoryField = h('label', null, tp('WoW action category'), categories);
         const spellField = h('label', null, tp('WoW action'), spells);
-        spellField.hidden = true;
+        categoryField.hidden = spellField.hidden = true;
         const form = h('form', 'ac-editor-form',
           h('label', null, tp('Button'), select),
-          ...(bindings.spellPicker ? [pick, spellField] : []),
+          ...(bindings.spellPicker ? [pick, categoryField, spellField] : []),
           h('label', null, tp('Button name'), label),
           h('label', null, tp('WoW keybind'), bind),
           h('label', null, tp('Icon'), symbol), save);
@@ -500,6 +504,19 @@ W['app-console'] = {
           return option;
         }));
         symbol.prepend(gameIcon);
+        const showActions = selected => {
+          const matches = availableActions.filter(action => wowCategory(action) === categories.value);
+          spells.replaceChildren(actionOption('', tp('Choose an action')),
+            ...matches.map(action => actionOption(action.id, action.name)));
+          spells.value = matches.some(action => action.id === selected) ? selected : '';
+          spells.disabled = !matches.length;
+        };
+        const showLinkedAction = () => {
+          const current = availableActions.find(action => action.id === linkedSpell);
+          categories.value = current ? wowCategory(current) : '';
+          showActions(linkedSpell);
+        };
+        categories.onchange = () => showActions(linkedSpell);
         const load = () => {
           const button = bindings.keys[select.selectedIndex];
           linkedSpell = button?.wowSpell || '';
@@ -507,7 +524,7 @@ W['app-console'] = {
           label.value = button?.label || '';
           bind.value = button?.keys || '';
           bind.placeholder = linkedSpell ? tp('Linked WoW action') : '';
-          if (spellBook) spells.value = linkedSpell || '';
+          if (availableActions.length) showLinkedAction();
           gameIcon.hidden = !(bindings.wowIcons || linkedSpell);
           symbol.value = !gameIcon.hidden && button?.useWowIcon !== false ? 'wow' : button?.icon || '';
           if (symbol.selectedIndex < 0) symbol.value = '';
@@ -520,19 +537,15 @@ W['app-console'] = {
             const response = await fetch(API + `/console/spells?${wq}${folderQuery}`, { headers: PANEL_HEADERS, cache: 'no-store' });
             const book = await response.json();
             if (!response.ok) throw new Error(book.error);
-            if (!alive || editor.hidden) return;
-            spellBook = book;
-            const first = h('option', null, tp('Choose an action'));
-            first.value = '';
-            const available = book.spells.filter(spell => folder?.form
+            if (!alive || editor.hidden || !editor.contains(form)) return;
+            availableActions = book.spells.filter(spell => folder?.form
               ? spell.forms?.includes(folder.form) : !spell.forms?.length);
-            spells.replaceChildren(first, ...available.map(spell => {
-              const option = h('option', null, spell.name);
-              option.value = spell.id;
-              return option;
-            }));
-            spells.value = linkedSpell;
-            spellField.hidden = false;
+            categories.replaceChildren(actionOption('', tp('Choose a category')),
+              ...WOW_ACTION_CATEGORIES.filter(([id]) => availableActions.some(action => wowCategory(action) === id))
+                .map(([id, name]) => actionOption(id, tp(name))));
+            showLinkedAction();
+            pick.hidden = true;
+            categoryField.hidden = spellField.hidden = false;
             status.textContent = book.character + ' · ' + book.className +
               (book.unavailable ? ' · ' + book.unavailable + ' ' + tp('could not be assigned shortcuts') : '');
           } catch (error) {
@@ -540,7 +553,7 @@ W['app-console'] = {
           } finally { pick.disabled = false; }
         };
         spells.onchange = () => {
-          const spell = spellBook?.spells.find(entry => spells.value === entry.id);
+          const spell = availableActions.find(entry => spells.value === entry.id);
           if (!spell) return;
           linkedSpell = spell.id;
           label.maxLength = 120;
@@ -574,7 +587,7 @@ W['app-console'] = {
           const query = new URLSearchParams({ index, label: name, keys: combo, icon, version: bindings.version });
           if (linkedSpell) query.set('wowSpell', linkedSpell);
           if (!gameIcon.hidden || bindings.keys[index]?.useWowIcon != null) query.set('useWowIcon', String(useWowIcon));
-          for (const field of [select, label, bind, symbol, save, pick, spells]) field.disabled = true;
+          for (const field of [select, label, bind, symbol, save, pick, categories, spells]) field.disabled = true;
           done.disabled = true;
           status.textContent = '';
           try {
@@ -587,13 +600,15 @@ W['app-console'] = {
           } catch (e) {
             status.textContent = e.message;
           } finally {
-            for (const field of [select, label, bind, symbol, save, done, pick, spells]) field.disabled = false;
+            for (const field of [select, label, bind, symbol, save, done, pick, categories]) field.disabled = false;
+            spells.disabled = !categories.value;
           }
         };
         editor.insertBefore(form, status);
         status.textContent = bindings.spellPicker ? tp('Choose a synced WoW action or enter a shortcut.')
           : tp('Use the keybind assigned in WoW to your ability or macro.');
         populate();
+        if (bindings.spellPicker) pick.click();
       } catch (_) {
         if (alive) status.textContent = tp('Button settings are unavailable.');
       }

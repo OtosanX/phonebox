@@ -2,7 +2,7 @@
 ## Title: PhoneBox Spellbook
 ## Notes: Exports WoW actions, form requirements, and game icons to PhoneBox.
 ## SavedVariables: PhoneBoxSpellbookSlots, PhoneBoxSpellbookExport
-## Version: 1.2.4
+## Version: 1.2.5
 
 FormData.lua
 PhoneBoxSpellbook.lua

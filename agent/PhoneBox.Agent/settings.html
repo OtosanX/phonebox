@@ -1802,20 +1802,20 @@ function consoleKeyWatch(field, label) {
 }
 
 const wowActionGroups = [
-  ['spell', 'Spells'], ['form', 'Form and stance abilities'], ['trinket', 'Trinkets'], ['item', 'Bag items'],
-  ['poison', 'Poisons'], ['pet', 'Pets'], ['macro', 'WoW macros'],
+  ['spell', 'Spells'], ['form', 'Form and stance abilities'], ['addon', 'Add-on actions'],
+  ['camping', 'Camping'], ['item', 'Bag items'], ['food', 'Food and drink'], ['potion', 'Potions'],
+  ['trinket', 'Trinkets'], ['poison', 'Poisons'], ['pet', 'Pets'], ['macro', 'WoW macros'],
 ];
-const wowActionGroup = action => action.forms?.length ? 'form'
-  : action.id.startsWith('TRINKET:') ? 'trinket' : action.kind || 'spell';
+const wowActionGroup = action => action.category || (action.forms?.length ? 'form' : action.kind);
 
-async function chooseWowActions(selected, { checked, include = () => true } = {}) {
+async function chooseWowActions(selected, { checked, current, include = () => true } = {}) {
   const search = h('input', { type: 'search', placeholder: tc('Find an action'), 'aria-label': tc('Find an action'), disabled: true });
   const status = h('p', { class: 'hint', role: 'status' }, tc('Loading WoW actions…'));
   const list = h('div', { class: 'wow-spell-list' });
-  const apply = h('button', { class: 'btn sm', type: 'button', disabled: true }, tc('Apply selection'));
+  const apply = h('button', { class: 'btn sm', type: 'button', disabled: true }, tc(checked ? 'Apply selection' : 'Use action'));
   const dialog = h('dialog', { class: 'wow-spell-picker', 'aria-label': tc('WoW actions') },
-    h('h3', {}, tc('WoW actions')), status, search, list, h('div', { class: 'row' },
-      checked ? apply : null, h('button', { class: 'btn sm', type: 'button', onclick: () => dialog.close() }, tc('Cancel'))));
+    h('h3', {}, tc('WoW actions')), status, checked ? search : null, list, h('div', { class: 'row' },
+      apply, h('button', { class: 'btn sm', type: 'button', onclick: () => dialog.close() }, tc('Cancel'))));
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
   document.body.append(dialog);
   dialog.showModal();
@@ -1827,6 +1827,35 @@ async function chooseWowActions(selected, { checked, include = () => true } = {}
     const all = book.spells.filter(include);
     status.textContent = book.character + ' · ' + book.className +
       (book.unavailable ? ' · ' + book.unavailable + ' ' + tc('could not be assigned shortcuts') : '');
+    if (!checked) {
+      const option = (value, label) => h('option', { value }, label);
+      const categories = h('select', {}, option('', tc('Choose a category')),
+        ...wowActionGroups.filter(([key]) => all.some(action => wowActionGroup(action) === key))
+          .map(([key, label]) => option(key, tc(label))));
+      const actions = h('select', {});
+      const renderActions = (selectedId = '') => {
+        const options = all.filter(action => wowActionGroup(action) === categories.value);
+        actions.replaceChildren(option('', tc('Choose an action')),
+          ...options.map(action => option(action.id, action.name)));
+        actions.value = options.some(action => action.id === selectedId) ? selectedId : '';
+        actions.disabled = !options.length;
+        apply.disabled = !actions.value;
+      };
+      categories.onchange = () => renderActions();
+      actions.onchange = () => { apply.disabled = !actions.value; };
+      apply.onclick = () => {
+        const action = all.find(entry => entry.id === actions.value);
+        if (!action) return;
+        selected(action);
+        dialog.close();
+      };
+      const linked = all.find(action => action.id === current);
+      categories.value = linked ? wowActionGroup(linked) : '';
+      renderActions(current);
+      list.append(h('label', { class: 'field' }, h('span', {}, tc('WoW action category')), categories),
+        h('label', { class: 'field' }, h('span', {}, tc('WoW action')), actions));
+      return;
+    }
     const render = () => {
       const filter = search.value.trim().toLocaleLowerCase();
       const matches = all.filter(action => action.name.toLocaleLowerCase().includes(filter));
@@ -1841,18 +1870,11 @@ async function chooseWowActions(selected, { checked, include = () => true } = {}
             loading: 'lazy', onerror: e => { e.target.hidden = true; } }) : null;
           const forms = (action.forms || []).map(id => book.forms?.[id]).filter(Boolean).join(', ');
           const name = h('span', {}, action.name, forms ? h('small', { class: 'hint' }, ' · ' + forms) : null);
-          if (checked) {
-            const checkbox = h('input', { type: 'checkbox', checked: checked.has(action.id), onchange: e => {
-              if (e.target.checked) checked.add(action.id);
-              else checked.delete(action.id);
-            } });
-            section.append(h('label', { class: 'wow-action-choice' }, checkbox, icon, name));
-          } else {
-            section.append(h('button', { class: 'btn sm wow-action-choice', type: 'button', onclick: () => {
-              selected(action);
-              dialog.close();
-            } }, icon, name));
-          }
+          const checkbox = h('input', { type: 'checkbox', checked: checked.has(action.id), onchange: e => {
+            if (e.target.checked) checked.add(action.id);
+            else checked.delete(action.id);
+          } });
+          section.append(h('label', { class: 'wow-action-choice' }, checkbox, icon, name));
         }
       }
       if (!matches.length) list.append(h('p', { class: 'hint' }, tc('No matching actions.')));
@@ -1921,7 +1943,7 @@ function consoleFolderEditor(w) {
   const choose = button => chooseWowActions(action => {
     Object.assign(button, link(action, { icon: button.icon }));
     refresh();
-  }, { include: action => inForm(action, form) });
+  }, { current: button.wowSpell, include: action => inForm(action, form) });
   const checklist = () => {
     const children = folders.filter(entry => entry.parent === folder.id && entry.form)
       .map(entry => ({ entry, profile: profiles.find(candidate => candidate.id === entry.id) }))

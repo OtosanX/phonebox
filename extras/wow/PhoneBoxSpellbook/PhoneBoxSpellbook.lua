@@ -17,6 +17,7 @@ local poisonIDs = {
 }
 local buttons = {}
 local formData = PhoneBoxFormData
+local campTentID = 279978
 
 local function collectCompanions(add)
     local journal = C_PetJournal
@@ -157,6 +158,8 @@ local function collectActions(class)
                         { type = "item", item = "item:" .. id, ["target-slot"] = 16 })
                     add("poison", "POISON:" .. id .. ":17", name .. " (Off hand)", icon,
                         { type = "item", item = "item:" .. id, ["target-slot"] = 17 })
+                elseif id == campTentID then
+                    add("item", "ITEM:" .. id, name or "Camp Tent", icon, { type = "item", item = "item:" .. id })
                 elseif name and use and not C_Item.IsEquippableItem(id) then
                     local classID, subClass = itemClass(id)
                     local kind = "item"
@@ -313,7 +316,7 @@ local function refresh()
     end)
 end
 
-for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED", "PLAYER_REGEN_ENABLED", "UPDATE_MACROS",
+for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED", "PLAYER_REGEN_ENABLED", "UPDATE_MACROS", "BAG_UPDATE_DELAYED",
     "PLAYER_EQUIPMENT_CHANGED", "PET_JOURNAL_LIST_UPDATE" }) do
     owner:RegisterEvent(event)
 end

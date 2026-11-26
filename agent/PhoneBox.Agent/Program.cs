@@ -701,7 +701,7 @@ app.MapGet("/api/console/spells", (string? widget, string? folder, HttpContext c
     return book is null ? Results.Json(new { error }, statusCode: 409)
         : Results.Json(new { book.Character, book.ClassName, book.Unavailable, book.BarIcons, book.Forms,
             spells = book.Spells.Where(x => x.IsSelectable).Select(x => new { x.Id, x.Name,
-                kind = x.Kind is "food" or "potion" ? "item" : x.Kind, x.Icon, x.Forms, x.OpensForm }) });
+                kind = x.Kind is "food" or "potion" ? "item" : x.Kind, category = x.PickerCategory, x.Icon, x.Forms, x.OpensForm }) });
 });
 app.MapGet("/api/console/action-selection", (string? widget, string? folder, HttpRequest req, AppConsole console) =>
 {

@@ -9,6 +9,13 @@ internal sealed record WowSpell(string Id, string Name, string Shortcut, string 
 {
     internal bool IsFormExit => Id.StartsWith("EXIT:", StringComparison.Ordinal);
     internal bool IsSelectable => !IsFormExit && !Id.StartsWith("ADVENTURE:", StringComparison.Ordinal);
+    internal string PickerCategory => Forms is { Length: > 0 } ? "form" : Id switch
+    {
+        "ITEM:279978" or "ITEM:279981" or "ITEM:211527" => "camping",
+        _ when Id.StartsWith("PARTY:", StringComparison.Ordinal) || Id.StartsWith("ADDON:", StringComparison.Ordinal) => "addon",
+        _ when Id.StartsWith("TRINKET:", StringComparison.Ordinal) => "trinket",
+        _ => Kind,
+    };
 }
 
 internal sealed record WowSpellList(string Character, string ClassName, string ClassId, List<WowSpell> Spells, int Unavailable, int ProcessId,

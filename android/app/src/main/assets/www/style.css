@@ -1502,6 +1502,7 @@ body.waking::after { opacity: 0; pointer-events: auto; transition: opacity .2s e
 .ac-editor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .ac-editor-form { display: grid; gap: 10px; max-width: 440px; }
 .ac-editor-form label { display: grid; gap: 4px; }
+.ac-editor-form label[hidden] { display: none; }
 .ac-editor-form input, .ac-editor-form select { width: 100%; padding: 7px 9px; color: var(--text); background: #151922; border: 1px solid var(--line); border-radius: 7px; font: inherit; }
 .ac-editor-status { color: var(--muted); font-size: 13px; margin-top: 10px; }
 .ac-action-picker-head { position: sticky; top: -12px; z-index: 1; background: var(--panel, #121620); padding: 8px 0; }

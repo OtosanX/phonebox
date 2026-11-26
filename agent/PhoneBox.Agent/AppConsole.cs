@@ -199,7 +199,7 @@ public sealed class AppConsole(ConfigStore config, ILogger<AppConsole> log)
             {
                 action.Name, kind = action.Id.StartsWith("TRINKET:", StringComparison.Ordinal) ? "trinket"
                     : action.Kind is "food" or "potion" ? "item" : action.Kind,
-                action.Icon, action.Forms, selected = checkedIds.Contains(action.Id),
+                category = action.PickerCategory, action.Icon, action.Forms, selected = checkedIds.Contains(action.Id),
             }),
         });
     }
